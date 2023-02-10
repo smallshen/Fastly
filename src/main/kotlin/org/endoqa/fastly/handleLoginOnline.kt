@@ -6,7 +6,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.contextual
 import org.endoqa.fastly.connection.Connection
-import org.endoqa.fastly.connection.PlayerConnection
 import org.endoqa.fastly.nio.ByteBuf
 import org.endoqa.fastly.player.GameProfile
 import org.endoqa.fastly.player.Property
@@ -67,18 +66,13 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
     val serverId = BigInteger(serverIdBytes).toString(16)
     val profile = hasJoined(loginStartPacket.name, serverId)
 
+    connection.enableEncryption(secretKey)
+
     require(profile.uuid == loginStartPacket.playerUUID) { "UUID is not correct" }
 
-    val playerConnection = PlayerConnection(connection)
-    playerConnection.connectToBackend(backendServers.first()) //TODO: easy to tell it is todo
+    TODO("connect to backend")
 
-    val backend = playerConnection.backendConnection
-
-    backend.sendPacket(loginStartPacket)
-
-    TODO("encryption")
-
-//    playerConnection.packetProxy()
+//    connection.sendPacket(LoginSuccessPacket(profile.uuid, profile.name, profile.properties)).join()
 }
 
 

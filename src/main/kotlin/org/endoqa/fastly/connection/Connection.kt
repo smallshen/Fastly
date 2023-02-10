@@ -2,6 +2,7 @@ package org.endoqa.fastly.connection
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import org.endoqa.fastly.encryption.EncryptedComplexAsyncSocket
 import org.endoqa.fastly.nio.AsyncSocket
 import org.endoqa.fastly.nio.ByteBuf
 import org.endoqa.fastly.nio.ComplexAsyncSocket
@@ -9,6 +10,9 @@ import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.RawPacket
 import org.endoqa.fastly.util.calculateVarIntSize
 import java.nio.ByteBuffer
+import javax.crypto.Cipher
+import javax.crypto.SecretKey
+import javax.crypto.spec.IvParameterSpec
 
 
 class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineScope {
@@ -17,6 +21,17 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
 
     val packetIn = Channel<RawPacket>()
     val packetOut = Channel<RawPacket>()
+
+    private var encryption = false
+
+
+    lateinit var encryptCipher: Cipher
+        private set
+
+
+    lateinit var decryptCipher: Cipher
+        private set
+
 
     init {
         coroutineContext.invokeOnCompletion {
@@ -58,20 +73,56 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
     }
 
     private suspend fun readRawPacket(): RawPacket {
+        return if (encryption) {
+            readEncrypted()
+        } else {
+            readNormal()
+        }
+    }
+
+
+    private suspend fun readNormal(): RawPacket {
         val cs = ComplexAsyncSocket(socket.channel)
         val length = cs.readVarInt()
         val packetId = cs.readVarInt()
         val actualDataLength = length - calculateVarIntSize(packetId)
-        return RawPacket(length, packetId, socket.readFully(actualDataLength).position(0))
+        val pData = cs.readFully(actualDataLength).position(0)
+        return RawPacket(length, packetId, pData)
+    }
+
+    private suspend fun readEncrypted(): RawPacket {
+        val cs = EncryptedComplexAsyncSocket(socket.channel)
+        val length = cs.readVarInt(decryptCipher)
+        val packetId = cs.readVarInt(decryptCipher)
+        val actualDataLength = length - calculateVarIntSize(packetId)
+        val pData = cs.readFully(actualDataLength, decryptCipher).position(0)
+        return RawPacket(length, packetId, pData)
     }
 
     private suspend fun writeRawPacket(packet: RawPacket) {
+        if (encryption) {
+            writeEncrypted(packet)
+        } else {
+            writeNormal(packet)
+        }
+    }
+
+    private suspend fun writeNormal(packet: RawPacket) {
         val (length, packetId, buffer) = packet
 
         val cs = ComplexAsyncSocket(socket.channel)
         cs.writeVarInt(length)
         cs.writeVarInt(packetId)
-        socket.write(buffer.position(0))
+        cs.write(buffer.position(0))
+    }
+
+    private suspend fun writeEncrypted(packet: RawPacket) {
+        val (length, packetId, buffer) = packet
+
+        val cs = EncryptedComplexAsyncSocket(socket.channel)
+        cs.writeVarInt(length, encryptCipher)
+        cs.writeVarInt(packetId, encryptCipher)
+        cs.write(buffer.position(0), encryptCipher)
     }
 
     suspend fun sendPacket(p: MinecraftPacket): CompletableJob {
@@ -81,11 +132,21 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         p.handler.write(ByteBuf(buf), p)
         buf.flip()
 
-        val job = Job(coroutineContext)
+        val job = Job()
 
         packetOut.send(RawPacket(buf.limit() + p.handler.packetIdSize, p.handler.packetId, buf, job))
 
         return job
+    }
+
+    fun enableEncryption(secretKey: SecretKey) {
+        encryptCipher = Cipher.getInstance("AES/CFB8/NoPadding")
+        encryptCipher.init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(secretKey.encoded))
+
+        decryptCipher = Cipher.getInstance("AES/CFB8/NoPadding")
+        decryptCipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(secretKey.encoded))
+
+        encryption = true
     }
 
     fun close() {

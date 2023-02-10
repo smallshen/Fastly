@@ -54,4 +54,8 @@ value class ComplexAsyncSocket(val channel: AsynchronousSocketChannel) {
             value = value ushr 7
         }
     }
+
+    suspend fun readFully(len: Int) = AsyncSocket(channel).readFully(len)
+
+    suspend fun write(buf: ByteBuffer) = AsyncSocket(channel).write(buf)
 }

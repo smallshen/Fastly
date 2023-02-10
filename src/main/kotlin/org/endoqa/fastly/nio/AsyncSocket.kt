@@ -86,6 +86,7 @@ value class AsyncSocket(val channel: AsynchronousSocketChannel) {
 
 
     suspend fun write(buf: ByteBuffer) = suspendCoroutine<Unit> { continuation ->
+
         channel.write(
             buf,
             null,
