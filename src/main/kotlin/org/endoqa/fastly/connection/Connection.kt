@@ -11,7 +11,7 @@ import org.endoqa.fastly.util.calculateVarIntSize
 import java.nio.ByteBuffer
 
 
-class Connection(val socket: AsyncSocket, val parentJob: Job? = null) : CoroutineScope {
+class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineScope {
 
     override val coroutineContext = Job(parentJob)
 

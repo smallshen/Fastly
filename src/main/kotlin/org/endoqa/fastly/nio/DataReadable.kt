@@ -10,4 +10,5 @@ interface DataReadable {
     fun readString(maxLength: Int = 32767): String
     fun readBoolean(): Boolean
     fun readUUID(): UUID
+    fun readByteArray(length: Int): ByteArray
 }

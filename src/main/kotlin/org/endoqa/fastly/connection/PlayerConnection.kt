@@ -8,10 +8,10 @@ import java.net.InetSocketAddress
 import java.nio.channels.AsynchronousSocketChannel
 
 class PlayerConnection(
-    val playerInfo: PlayerInfo,
     val connection: Connection,
 ) : CoroutineScope by connection {
 
+    lateinit var playerInfo: PlayerInfo
     lateinit var backendConnection: Connection
 
 

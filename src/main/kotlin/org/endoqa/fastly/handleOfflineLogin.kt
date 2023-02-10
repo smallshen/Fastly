@@ -8,21 +8,15 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import java.util.*
 
-suspend fun FastlyServer.handleLogin(connection: Connection, handshakePacket: HandshakePacket): Unit {
+suspend fun FastlyServer.handleOfflineLogin(connection: Connection, handshakePacket: HandshakePacket) {
 
     val rp = connection.packetIn.receive()
-
     require(rp.packetId == 0x00) { "Expected login packet, got ${rp.packetId}" }
 
     val packet = LoginStartPacket.read(ByteBuf(rp.buffer.position(0)))
 
-    val playerInfo = PlayerInfo(
-        uuid = if (online) packet.playerUUID
-            ?: error("Player UUID is null") else UUID.nameUUIDFromBytes("OfflinePlayer:${packet.name}".toByteArray()),
-        name = packet.name
-    )
 
-    val playerConnection = PlayerConnection(playerInfo, connection)
+    val playerConnection = PlayerConnection(connection)
     playerConnection.connectToBackend(backendServers.first()) //TODO: easy to tell it is todo
 
 
@@ -30,8 +24,17 @@ suspend fun FastlyServer.handleLogin(connection: Connection, handshakePacket: Ha
     backend.startIO()
 
     backend.sendPacket(handshakePacket)
-    val loginStartPacket = LoginStartPacket(playerInfo.name, true, playerInfo.uuid)
+
+    val uuid = UUID.nameUUIDFromBytes("OfflinePlayer:${packet.name}".toByteArray())
+
+    val loginStartPacket = LoginStartPacket(
+        name = packet.name,
+        hasPlayerUUID = true,
+        playerUUID = uuid,
+
+        )
     backend.sendPacket(loginStartPacket)
+    playerConnection.playerInfo = PlayerInfo(uuid, packet.name)
 
     playerConnection.packetProxy()
 

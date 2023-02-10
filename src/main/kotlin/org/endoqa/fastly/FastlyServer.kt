@@ -9,6 +9,8 @@ import org.endoqa.fastly.nio.AsyncSocket
 import java.net.InetSocketAddress
 import java.nio.channels.AsynchronousServerSocketChannel
 import java.nio.channels.AsynchronousSocketChannel
+import java.security.KeyPair
+import java.security.KeyPairGenerator
 
 class FastlyServer(
     private val port: Int,
@@ -21,6 +23,14 @@ class FastlyServer(
     private val wrapper = AsyncServerSocket(serverSocket)
 
     val backendServers = mutableSetOf<BackendServer>()
+
+    val keyPair: KeyPair
+
+    init {
+        val keyGen = KeyPairGenerator.getInstance("RSA")
+        keyGen.initialize(1024)
+        keyPair = keyGen.generateKeyPair()
+    }
 
 
     suspend fun start() {
@@ -41,9 +51,17 @@ class FastlyServer(
         val c = Connection(channelWrapper, this.coroutineContext)
         c.startIO()
 
-        val nextLogin = processHandshake(c) ?: return
+        val nextLogin = handleHandshake(c) ?: return
 
-        handleLogin(c, nextLogin)
+        try {
+            if (online) {
+                handleOnlineLogin(c, nextLogin)
+            } else {
+                handleOfflineLogin(c, nextLogin)
+            }
+        } catch (e: Exception) {
+            c.close()
+        }
     }
 
 

@@ -81,6 +81,17 @@ value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
         error("Invalid boolean value: $v")
     }
 
+    override fun readByteArray(length: Int): ByteArray {
+        val bytes = ByteArray(length)
+        buf.get(bytes)
+        return bytes
+    }
+
+    override fun writeByteArray(byteArray: ByteArray) {
+        buf.put(byteArray)
+    }
+
+
     override fun writeVarInt(int: Int) {
         var value = int
         while (true) {

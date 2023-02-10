@@ -5,7 +5,7 @@ import org.endoqa.fastly.FastlyServer
 import java.net.InetAddress
 
 fun main() {
-    val server = FastlyServer(25565)
+    val server = FastlyServer(25565, true)
 
     server.backendServers += BackendServer(
         "test1",

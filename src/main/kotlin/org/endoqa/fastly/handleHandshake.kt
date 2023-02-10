@@ -7,7 +7,7 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 /**
  * @return true, if next is 2(login)
  */
-internal suspend fun FastlyServer.processHandshake(connection: Connection): HandshakePacket? {
+internal suspend fun FastlyServer.handleHandshake(connection: Connection): HandshakePacket? {
 
     val p = connection.packetIn.receive()
 

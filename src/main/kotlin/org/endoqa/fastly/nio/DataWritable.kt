@@ -9,4 +9,5 @@ interface DataWritable {
     fun writeLong(long: Long)
     fun writeBoolean(boolean: Boolean)
     fun writeUUID(uuid: UUID)
+    fun writeByteArray(byteArray: ByteArray)
 }
