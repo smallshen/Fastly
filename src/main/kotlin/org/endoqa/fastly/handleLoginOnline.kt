@@ -13,6 +13,7 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.EncryptionResponsePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import org.endoqa.fastly.protocol.packet.server.login.EncryptionRequestPacket
+import org.endoqa.fastly.protocol.packet.server.login.LoginSuccessPacket
 import java.math.BigInteger
 import java.net.URI
 import java.net.URLEncoder
@@ -46,23 +47,23 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
 
     val encryptionResponsePacket = EncryptionResponsePacket.read(ByteBuf(ep.buffer.position(0)))
 
-    val cipher = Cipher.getInstance("RSA")
-    cipher.init(Cipher.DECRYPT_MODE, this.keyPair.private)
+    val verifyCipher = Cipher.getInstance("RSA")
+    verifyCipher.init(Cipher.DECRYPT_MODE, this.keyPair.private)
+    require(
+        verifyCipher.doFinal(encryptionResponsePacket.verifyToken).contentEquals(nonce)
+    ) { "Verify token is not correct" }
 
-    require(cipher.doFinal(encryptionResponsePacket.verifyToken).contentEquals(nonce)) { "Verify token is not correct" }
-
-    val cipher4Secret = Cipher.getInstance("RSA")
-    cipher4Secret.init(Cipher.DECRYPT_MODE, this.keyPair.private)
-
-    val secret = cipher4Secret.doFinal(encryptionResponsePacket.sharedSecret) ?: error("Shared secret is null")
+    val secretCipher = Cipher.getInstance("RSA")
+    secretCipher.init(Cipher.DECRYPT_MODE, this.keyPair.private)
+    val secret = secretCipher.doFinal(encryptionResponsePacket.sharedSecret) ?: error("Shared secret is null")
 
     val secretKey = SecretKeySpec(secret, "AES")
 
-    val digest = MessageDigest.getInstance("SHA-1")
-    digest.update(secretKey.encoded)
-    digest.update(keyPair.public.encoded)
+    val digestedData = MessageDigest.getInstance("SHA-1")
+    digestedData.update(secretKey.encoded)
+    digestedData.update(keyPair.public.encoded)
 
-    val serverIdBytes = digest.digest()
+    val serverIdBytes = digestedData.digest()
     val serverId = BigInteger(serverIdBytes).toString(16)
     val profile = hasJoined(loginStartPacket.name, serverId)
 
@@ -70,9 +71,11 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
 
     require(profile.uuid == loginStartPacket.playerUUID) { "UUID is not correct" }
 
-    TODO("connect to backend")
+    val loginSuccess = LoginSuccessPacket(profile.uuid, profile.name, profile.properties)
 
-//    connection.sendPacket(LoginSuccessPacket(profile.uuid, profile.name, profile.properties)).join()
+
+    connection.sendPacket(loginSuccess)
+
 }
 
 
@@ -103,8 +106,20 @@ private suspend fun hasJoined(
     future.whenComplete { response, throwable ->
         if (throwable != null) {
             continuation.resumeWithException(throwable)
-        } else {
-            continuation.resume(json.decodeFromString(response.body()))
+            return@whenComplete
+        }
+
+        if (response.statusCode() != 200) {
+            continuation.resumeWithException(IllegalStateException("Invalid status code: ${response.statusCode()}"))
+            return@whenComplete
+        }
+
+        try {
+            val data: GameProfile = json.decodeFromString(response.body())
+            continuation.resume(data)
+        } catch (e: Throwable) {
+            continuation.resumeWithException(e)
+            return@whenComplete
         }
     }
 

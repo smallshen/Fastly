@@ -1,11 +1,8 @@
 package org.endoqa.fastly.nio
 
+import org.endoqa.fastly.util.protocol.writeVarInt
 import java.nio.ByteBuffer
 import java.util.*
-
-
-private const val SEGMENT_BITS = 0x7F
-private const val CONTINUE_BIT = 0x80
 
 @JvmInline
 value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
@@ -20,24 +17,7 @@ value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
     }
 
     override fun readVarInt(): Int {
-        var value = 0
-        var position = 0
-        var currentByte: Int
-
-
-        repeat(5) {
-            currentByte = buf.get().toInt()
-            value = value or (currentByte and SEGMENT_BITS shl position)
-
-            if (currentByte and CONTINUE_BIT == 0) {
-                return value
-            }
-
-            position += 7
-            if (position >= 32) throw RuntimeException("VarInt is too big")
-        }
-
-        error("VarInt size overflow")
+        return org.endoqa.fastly.util.protocol.readVarInt { buf.get() }
     }
 
     override fun readLong() = buf.long
@@ -93,16 +73,6 @@ value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
 
 
     override fun writeVarInt(int: Int) {
-        var value = int
-        while (true) {
-            if (value and SEGMENT_BITS.inv() == 0) {
-                buf.put(value.toByte())
-                return
-            }
-            buf.put((value and SEGMENT_BITS or CONTINUE_BIT).toByte())
-
-            // Note: >>> means that the sign bit is shifted with the rest of the number rather than being left alone
-            value = value ushr 7
-        }
+        writeVarInt(int) { buf.put(it) }
     }
 }
