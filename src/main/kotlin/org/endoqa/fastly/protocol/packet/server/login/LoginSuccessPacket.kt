@@ -9,7 +9,7 @@ import org.endoqa.fastly.util.calculateVarIntSize
 import org.endoqa.fastly.util.estimateStringSizeInBytes
 import java.util.*
 
-val MAX_USERNAME_VARINT_SIZE = calculateVarIntSize(16)
+private val maxUsernameVarIntSize = calculateVarIntSize(16)
 
 data class LoginSuccessPacket(
     val uuid: UUID,
@@ -53,7 +53,7 @@ data class LoginSuccessPacket(
 
     override fun estimateSize(): Int {
         return 8 + 8 +
-                MAX_USERNAME_VARINT_SIZE +
+                maxUsernameVarIntSize +
                 5 +
                 properties.sumOf { (name, value, sig) ->
                     name.estimateStringSizeInBytes +

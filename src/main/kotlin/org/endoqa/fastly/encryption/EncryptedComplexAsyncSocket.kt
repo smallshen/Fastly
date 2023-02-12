@@ -15,13 +15,16 @@ value class EncryptedComplexAsyncSocket(val channel: AsynchronousSocketChannel) 
     suspend fun readVarInt(decrypt: Cipher): Int {
         val socket = AsyncSocket(channel)
         val sharedBuf = ByteBuffer.allocate(1)
-        val shareDecrypt = ByteBuffer.allocate(1)
+        val decryptBuf = ByteBuffer.allocate(1)
 
         return readVarInt {
             sharedBuf.clear()
-            shareDecrypt.clear()
-            decrypt.update(socket.readFully(sharedBuf).position(0), shareDecrypt)
-            shareDecrypt.position(0).get()
+            decryptBuf.clear()
+
+            socket.readFully(sharedBuf)
+
+            decrypt.update(sharedBuf.position(0), decryptBuf)
+            decryptBuf.position(0).get()
         }
     }
 
@@ -29,17 +32,17 @@ value class EncryptedComplexAsyncSocket(val channel: AsynchronousSocketChannel) 
     suspend fun writeVarInt(v: Int, encrypt: Cipher) {
         val socket = AsyncSocket(channel)
         val sharedBuf = ByteBuffer.allocate(1)
-        val sharedEncrypt = ByteBuffer.allocate(1)
+        val encryptBuf = ByteBuffer.allocate(1)
 
         writeVarInt(v) {
             sharedBuf.clear()
-            sharedEncrypt.clear()
+            encryptBuf.clear()
 
             sharedBuf.put(it).position(0)
 
-            encrypt.update(sharedBuf, sharedEncrypt)
+            encrypt.update(sharedBuf, encryptBuf)
 
-            socket.write(sharedEncrypt.position(0))
+            socket.write(encryptBuf.position(0))
         }
     }
 
@@ -52,7 +55,7 @@ value class EncryptedComplexAsyncSocket(val channel: AsynchronousSocketChannel) 
     }
 
     suspend fun write(buf: ByteBuffer, encrypt: Cipher) {
-        val dup = ByteBuffer.allocate(buf.capacity())
+        val dup = buf.duplicate()
         encrypt.update(buf.position(0), dup)
         AsyncSocket(channel).write(dup.position(0))
     }

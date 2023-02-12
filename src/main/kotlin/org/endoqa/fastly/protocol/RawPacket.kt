@@ -10,6 +10,10 @@ data class RawPacket(
     val attachJob: CompletableJob? = null
 ) {
 
+    override fun toString(): String {
+        return "RawPacket(length=$length, packetId=0x${Integer.toHexString(packetId)}, buffer=$buffer, attachJob=$attachJob)"
+    }
+
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
