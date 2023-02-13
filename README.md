@@ -7,10 +7,10 @@ A minecraft reverse proxy
 - [x] offline
 - [x] online verify user
 - [x] connect to backend server
-- [ ] encryption
+- [x] encryption
+- [x] velocity modern player info forwarding
 - [ ] compression
 - [ ] plugin message
-- [ ] login plugin
 - [ ] clear bossbar on switch server
 - [ ] clear titles on switch server
 - [ ] clear tablist on switch server
