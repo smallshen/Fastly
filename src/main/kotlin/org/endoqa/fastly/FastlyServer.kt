@@ -9,12 +9,15 @@ import org.endoqa.fastly.nio.AsyncSocket
 import java.net.InetSocketAddress
 import java.nio.channels.AsynchronousServerSocketChannel
 import java.nio.channels.AsynchronousSocketChannel
+import java.security.Key
 import java.security.KeyPair
 import java.security.KeyPairGenerator
+import javax.crypto.spec.SecretKeySpec
 
 class FastlyServer(
     private val port: Int,
     val online: Boolean = false, //TODO: default to true in the future
+    val forwardSecret: String
 ) : CoroutineScope {
 
     override val coroutineContext = SupervisorJob()
@@ -31,6 +34,8 @@ class FastlyServer(
         keyGen.initialize(1024)
         keyPair = keyGen.generateKeyPair()
     }
+
+    val modernForwardKey: Key = SecretKeySpec(forwardSecret.toByteArray(), "HmacSHA256")
 
 
     suspend fun start() {
@@ -62,6 +67,7 @@ class FastlyServer(
         } catch (e: Exception) {
             c.close()
         }
+        c.coroutineContext.join()
     }
 
 

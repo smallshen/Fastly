@@ -6,7 +6,7 @@ import org.endoqa.fastly.protocol.packet.server.handshake.StatusResponsePacket
 
 
 suspend fun handleStatus(connection: Connection) {
-    val packet = connection.packetIn.receive()
+    val packet = connection.readRawPacket()
     val (_, packetId, _) = packet
 
     if (packetId == 0x00) {
@@ -29,7 +29,7 @@ suspend fun handleStatus(connection: Connection) {
 }
 
 suspend fun handlePing(connection: Connection) {
-    val packet = connection.packetIn.receive()
+    val packet = connection.readRawPacket()
 
     if (packet.packetId != 0x01) {
         //TODO: logging here

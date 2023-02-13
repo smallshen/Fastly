@@ -4,6 +4,8 @@ import org.endoqa.fastly.util.protocol.writeVarInt
 import java.nio.ByteBuffer
 import java.util.*
 
+val EMPTY_BYTE_ARRAY = ByteArray(0)
+
 @JvmInline
 value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
 
@@ -68,7 +70,18 @@ value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
     }
 
     override fun writeByteArray(byteArray: ByteArray) {
+        if (byteArray === EMPTY_BYTE_ARRAY) return
+        if (byteArray.isEmpty()) return
+
         buf.put(byteArray)
+    }
+
+    override fun readRemaining(): ByteArray {
+        if (!buf.hasRemaining()) return EMPTY_BYTE_ARRAY
+
+        val bytes = ByteArray(buf.remaining())
+        buf.get(bytes)
+        return bytes
     }
 
 

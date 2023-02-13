@@ -10,7 +10,7 @@ import java.util.*
 
 suspend fun FastlyServer.handleOfflineLogin(connection: Connection, handshakePacket: HandshakePacket) {
 
-    val rp = connection.packetIn.receive()
+    val rp = connection.readRawPacket()
     require(rp.packetId == 0x00) { "Expected login packet, got ${rp.packetId}" }
 
     val packet = LoginStartPacket.read(ByteBuf(rp.buffer.position(0)))

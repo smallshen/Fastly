@@ -42,13 +42,15 @@ class PlayerConnection(
     fun packetProxy() {
         backendConnection.launch {
             launch {
-                for (p in connection.packetIn) {
+                while (true) {
+                    val p = connection.readRawPacket()
                     launch { backendConnection.packetOut.send(p) }
                 }
             }
 
             launch {
-                for (p in backendConnection.packetIn) {
+                while (true) {
+                    val p = backendConnection.readRawPacket()
                     launch { connection.packetOut.send(p) }
                 }
             }

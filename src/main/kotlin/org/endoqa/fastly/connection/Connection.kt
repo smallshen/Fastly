@@ -19,7 +19,6 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
 
     override val coroutineContext = Job(parentJob)
 
-    val packetIn = Channel<RawPacket>()
     val packetOut = Channel<RawPacket>()
 
     private var encryption = false
@@ -41,24 +40,10 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
 
     fun startIO() {
         launch {
-            incomingLoop()
-        }
-        launch {
             outgoingLoop()
         }
     }
 
-    private suspend fun incomingLoop() {
-        while (coroutineContext.isActive) {
-            if (!socket.channel.isOpen) {
-                coroutineContext.cancelAndJoin()
-                break
-            }
-
-            packetIn.send(readRawPacket())
-        }
-
-    }
 
     private suspend fun outgoingLoop() {
         for (p in packetOut) {
@@ -72,7 +57,7 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         }
     }
 
-    private suspend fun readRawPacket(): RawPacket {
+    suspend fun readRawPacket(): RawPacket {
         return if (encryption) {
             readEncrypted()
         } else {
@@ -87,7 +72,9 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         val packetId = cs.readVarInt()
         val actualDataLength = length - calculateVarIntSize(packetId)
         val pData = cs.readFully(actualDataLength).position(0)
-        return RawPacket(length, packetId, pData)
+        val rawPacket = RawPacket(length, packetId, pData)
+
+        return rawPacket
     }
 
     private suspend fun readEncrypted(): RawPacket {
@@ -95,7 +82,7 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         val length = cs.readVarInt(decryptCipher)
         val packetId = cs.readVarInt(decryptCipher)
         val actualDataLength = length - calculateVarIntSize(packetId)
-        val pData = cs.readFully(actualDataLength, decryptCipher).position(0)
+        val pData = cs.readFully(actualDataLength, decryptCipher).flip()
         return RawPacket(length, packetId, pData)
     }
 

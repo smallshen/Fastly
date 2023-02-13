@@ -58,53 +58,61 @@ value class AsyncSocket(val channel: AsynchronousSocketChannel) {
     suspend fun read(cap: Int) = read(ByteBuffer.allocate(cap))
 
     suspend fun read(buf: ByteBuffer): ByteBuffer = suspendCoroutine { continuation ->
-        channel.read(
-            buf,
-            null,
-            object : ReadHandler {
-                override fun completed(result: Int, attachment: Unit?) {
-                    // empty
-                    when (result) {
-                        -1 -> {
-                            channel.close()
-                            continuation.resumeWithException(AsynchronousCloseException())
+        try {
+            channel.read(
+                buf,
+                null,
+                object : ReadHandler {
+                    override fun completed(result: Int, attachment: Unit?) {
+                        // empty
+                        when (result) {
+                            -1 -> {
+                                channel.close()
+                                continuation.resumeWithException(AsynchronousCloseException())
+                            }
+
+                            0 -> continuation.resumeWithException(RuntimeException("Connection closed(? maybe) because result is 0"))
+                            else -> continuation.resume(buf)
                         }
-
-                        0 -> continuation.resumeWithException(RuntimeException("Connection closed(? maybe) because result is 0"))
-                        else -> continuation.resume(buf)
                     }
-                }
 
-                override fun failed(exc: Throwable, attachment: Unit?) {
-                    channel.close()
-                    continuation.resumeWithException(exc)
-                }
+                    override fun failed(exc: Throwable, attachment: Unit?) {
+                        channel.close()
+                        continuation.resumeWithException(exc)
+                    }
 
-            }
-        )
+                }
+            )
+        } catch (e: Throwable) {
+            continuation.resumeWithException(e)
+        }
     }
 
 
     suspend fun write(buf: ByteBuffer) = suspendCoroutine<Unit> { continuation ->
 
-        channel.write(
-            buf,
-            null,
-            object : WriteHandler {
-                override fun completed(result: Int, attachment: Unit?) {
-                    if (result == -1) {
-                        continuation.resumeWithException(RuntimeException("Connection closed because result is -1"))
-                    } else {
-                        continuation.resume(Unit)
+        try {
+            channel.write(
+                buf,
+                null,
+                object : WriteHandler {
+                    override fun completed(result: Int, attachment: Unit?) {
+                        if (result == -1) {
+                            continuation.resumeWithException(RuntimeException("Connection closed because result is -1"))
+                        } else {
+                            continuation.resume(Unit)
+                        }
                     }
-                }
 
-                override fun failed(exc: Throwable, attachment: Unit?) {
-                    continuation.resumeWithException(exc)
-                }
+                    override fun failed(exc: Throwable, attachment: Unit?) {
+                        continuation.resumeWithException(exc)
+                    }
 
-            }
-        )
+                }
+            )
+        } catch (e: Throwable) {
+            continuation.resumeWithException(e)
+        }
     }
 
 

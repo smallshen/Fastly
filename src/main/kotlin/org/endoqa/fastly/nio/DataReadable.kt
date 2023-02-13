@@ -11,4 +11,5 @@ interface DataReadable {
     fun readBoolean(): Boolean
     fun readUUID(): UUID
     fun readByteArray(length: Int): ByteArray
+    fun readRemaining(): ByteArray
 }

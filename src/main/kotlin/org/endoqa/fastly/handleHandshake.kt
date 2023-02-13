@@ -9,7 +9,7 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
  */
 internal suspend fun FastlyServer.handleHandshake(connection: Connection): HandshakePacket? {
 
-    val p = connection.packetIn.receive()
+    val p = connection.readRawPacket()
 
     if (p.packetId != 0x00) {
         //TODO: logging here

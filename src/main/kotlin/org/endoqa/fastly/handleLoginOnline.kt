@@ -6,30 +6,35 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.contextual
 import org.endoqa.fastly.connection.Connection
+import org.endoqa.fastly.connection.PlayerConnection
 import org.endoqa.fastly.nio.ByteBuf
 import org.endoqa.fastly.player.GameProfile
 import org.endoqa.fastly.player.Property
 import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.EncryptionResponsePacket
+import org.endoqa.fastly.protocol.packet.client.login.LoginPluginResponsePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import org.endoqa.fastly.protocol.packet.server.login.EncryptionRequestPacket
-import org.endoqa.fastly.protocol.packet.server.login.LoginSuccessPacket
+import org.endoqa.fastly.protocol.packet.server.login.LoginPluginRequestPacket
 import java.math.BigInteger
+import java.net.InetSocketAddress
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.concurrent.ThreadLocalRandom
 import javax.crypto.Cipher
+import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePacket: HandshakePacket) {
-    val rp = connection.packetIn.receive()
+    val rp = connection.readRawPacket()
     require(rp.packetId == 0x00) { "Expected login packet, got ${rp.packetId}" }
 
     val loginStartPacket = LoginStartPacket.read(ByteBuf(rp.buffer.position(0)))
@@ -42,16 +47,16 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
     val encryptionRequestPacket = EncryptionRequestPacket("", this.keyPair.public.encoded, nonce)
     connection.sendPacket(encryptionRequestPacket) // maybe we don't need to join. we'll se in the future
 
-    val ep = connection.packetIn.receive()
+    val ep = connection.readRawPacket()
     require(ep.packetId == 0x01) { "Expected encryption response packet, got ${ep.packetId}" }
 
     val encryptionResponsePacket = EncryptionResponsePacket.read(ByteBuf(ep.buffer.position(0)))
 
     val verifyCipher = Cipher.getInstance("RSA")
     verifyCipher.init(Cipher.DECRYPT_MODE, this.keyPair.private)
-    require(
-        verifyCipher.doFinal(encryptionResponsePacket.verifyToken).contentEquals(nonce)
-    ) { "Verify token is not correct" }
+
+    val checkVerifyToken = verifyCipher.doFinal(encryptionResponsePacket.verifyToken).contentEquals(nonce)
+    require(checkVerifyToken) { "Verify token is not correct" }
 
     val secretCipher = Cipher.getInstance("RSA")
     secretCipher.init(Cipher.DECRYPT_MODE, this.keyPair.private)
@@ -71,13 +76,74 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
 
     require(profile.uuid == loginStartPacket.playerUUID) { "UUID is not correct" }
 
-    val loginSuccess = LoginSuccessPacket(profile.uuid, profile.name, profile.properties)
+    val playerCon = PlayerConnection(connection)
+    playerCon.connectToBackend(backendServers.first())
+
+    val backend = playerCon.backendConnection
+    backend.startIO()
+
+    backend.sendPacket(handshakePacket)
+    backend.sendPacket(loginStartPacket)
 
 
-    connection.sendPacket(loginSuccess)
+    val loginRequestRp = backend.readRawPacket()
+    require(loginRequestRp.packetId == LoginPluginRequestPacket.packetId) { "Expected login plugin response packet, got ${loginRequestRp.packetId}" }
 
+    val loginRequest = LoginPluginRequestPacket.read(ByteBuf(loginRequestRp.buffer.position(0)))
+
+    val loginResponsePacket = LoginPluginResponsePacket(
+        loginRequest.messageId,
+        true,
+        createForwardingData(connection.remoteAddressAsString(), profile)
+    )
+
+    backend.sendPacket(loginResponsePacket)
+    playerCon.packetProxy()
 }
 
+private fun FastlyServer.createForwardingData(
+    actualAddress: String,
+    gameProfile: GameProfile
+): ByteArray {
+    val buffer = ByteBuffer.allocate(2048) //TODO: replace 2048 with estimatedSize
+    val buf = ByteBuf(buffer)
+    buf.writeVarInt(1) // MODERN_FORWARDING_DEFAULT, no support for chat sign
+    buf.writeString(actualAddress)
+    buf.writeUUID(gameProfile.uuid)
+    buf.writeString(gameProfile.name)
+
+    buf.writeVarInt(gameProfile.properties.size)
+    gameProfile.properties.forEach { property ->
+        buf.writeString(property.name)
+        buf.writeString(property.value)
+        buf.writeBoolean(property.signature != null)
+        property.signature?.let { buf.writeString(it) }
+    }
+
+    buffer.flip()
+
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(modernForwardKey)
+    mac.update(buffer.array(), 0, buffer.limit())
+    val sig = mac.doFinal()
+
+    val arr = ByteArray(buffer.remaining())
+    buffer.get(arr)
+
+    return sig + arr
+}
+
+
+private fun Connection.remoteAddressAsString(): String {
+    val addr = (socket.channel.remoteAddress as InetSocketAddress).address.hostAddress
+
+    val ipv6ScopeIdx = addr.indexOf('%')
+    return if (ipv6ScopeIdx == -1) {
+        addr
+    } else {
+        addr.substring(0, ipv6ScopeIdx)
+    }
+}
 
 private val json = Json {
     serializersModule = SerializersModule {
