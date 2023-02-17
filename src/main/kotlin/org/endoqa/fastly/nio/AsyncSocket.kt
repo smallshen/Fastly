@@ -1,6 +1,7 @@
 package org.endoqa.fastly.nio
 
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.IOException
 import java.net.SocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousCloseException
@@ -117,7 +118,11 @@ value class AsyncSocket(val channel: AsynchronousSocketChannel) {
 
 
     fun close() {
-        channel.close()
+        try {
+            channel.close()
+        } catch (e: IOException) {
+            // ignored
+        }
     }
 
 }
