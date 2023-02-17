@@ -9,7 +9,7 @@ fun main() {
 
     server.backendServers += BackendServer(
         "test1",
-        InetAddress.getByName("192.168.0.222"),
+        InetAddress.getByName("192.168.0.161"),
         25566,
     )
 
