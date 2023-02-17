@@ -32,9 +32,7 @@ suspend fun handlePing(connection: Connection) {
     val packet = connection.readRawPacket()
 
     if (packet.packetId != 0x01) {
-        //TODO: logging here
-        connection.close()
-        return
+        error("Invalid packet id: ${packet.packetId} (expected 0x01)")
     }
 
     connection.sendPacket(PongResponse(System.currentTimeMillis())).join()

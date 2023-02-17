@@ -33,7 +33,7 @@ import javax.crypto.spec.SecretKeySpec
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePacket: HandshakePacket) {
+suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePacket: HandshakePacket): PlayerConnection {
     val rp = connection.readRawPacket()
     require(rp.packetId == 0x00) { "Expected login packet, got ${rp.packetId}" }
 
@@ -97,8 +97,10 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
         createForwardingData(connection.remoteAddressAsString(), profile)
     )
 
+
     backend.sendPacket(loginResponsePacket)
-    playerCon.packetProxy()
+
+    return playerCon
 }
 
 private fun FastlyServer.createForwardingData(

@@ -8,7 +8,10 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import java.util.*
 
-suspend fun FastlyServer.handleOfflineLogin(connection: Connection, handshakePacket: HandshakePacket) {
+suspend fun FastlyServer.handleOfflineLogin(
+    connection: Connection,
+    handshakePacket: HandshakePacket
+): PlayerConnection {
 
     val rp = connection.readRawPacket()
     require(rp.packetId == 0x00) { "Expected login packet, got ${rp.packetId}" }
@@ -31,11 +34,9 @@ suspend fun FastlyServer.handleOfflineLogin(connection: Connection, handshakePac
         name = packet.name,
         hasPlayerUUID = true,
         playerUUID = uuid,
-
-        )
+    )
     backend.sendPacket(loginStartPacket)
     playerConnection.playerInfo = PlayerInfo(uuid, packet.name)
 
-    playerConnection.packetProxy()
-
+    return playerConnection
 }

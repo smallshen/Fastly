@@ -13,8 +13,7 @@ internal suspend fun FastlyServer.handleHandshake(connection: Connection): Hands
 
     if (p.packetId != 0x00) {
         //TODO: logging here
-        connection.close()
-        return null
+        error("Invalid packet id: ${p.packetId} (expected 0x00)")
     }
 
     val packet = HandshakePacket.read(ByteBuf(p.buffer.position(0)))
