@@ -28,35 +28,37 @@ class PlayerConnection(
 
         val socket = AsyncSocket(channel)
         socket.connect(InetSocketAddress(target.address, target.port))
-        val newBackend = Connection(socket)
+        val newBackend = Connection(socket, connection.coroutineContext)
         backendConnection = newBackend
-
-
-        newBackend.launch {
-            connection.coroutineContext.join()
-            newBackend.close()
-        }
-
     }
+
 
     fun packetProxy() {
         backendConnection.launch {
-            launch {
-                while (true) {
-                    val p = connection.readRawPacket()
-                    launch { backendConnection.packetOut.send(p) }
-                }
-            }
-
-            launch {
-                while (true) {
+            try {
+                while (isActive) {
                     val p = backendConnection.readRawPacket()
                     launch { connection.packetOut.send(p) }
+                    yield()
                 }
+            } catch (e: Throwable) {
+                println("Caught exception b2c: ${e.message}")
             }
-
-
         }
+
+        backendConnection.launch {
+            try {
+                while (isActive) {
+                    val p = connection.readRawPacket()
+                    launch { backendConnection.packetOut.send(p) }
+                    yield()
+                }
+            } catch (e: Throwable) {
+                println("Caught exception c2b: ${e.message}")
+            }
+        }
+
+
     }
 
 

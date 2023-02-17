@@ -1,8 +1,6 @@
 package org.endoqa.fastly
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import org.endoqa.fastly.connection.Connection
 import org.endoqa.fastly.nio.AsyncServerSocket
 import org.endoqa.fastly.nio.AsyncSocket
@@ -47,27 +45,37 @@ class FastlyServer(
 
     private fun doWork(channel: AsynchronousSocketChannel) {
         launch {
-            handleConnection(channel)
+            val channelWrapper = AsyncSocket(channel)
+
+            val c = Connection(channelWrapper, coroutineContext.job)
+            c.startIO()
+
+            try {
+                handleConnection(c)
+                c.coroutineContext.join()
+            } catch (e: Throwable) {
+                println("Caught exception: ${e.message}")
+            } finally {
+                c.cancel()
+                yield()
+                c.coroutineContext.join() // no memory leaks
+            }
         }
     }
 
-    private suspend fun handleConnection(channel: AsynchronousSocketChannel) {
-        val channelWrapper = AsyncSocket(channel)
-        val c = Connection(channelWrapper, this.coroutineContext)
-        c.startIO()
+    private suspend fun handleConnection(connection: Connection) {
 
-        val nextLogin = handleHandshake(c) ?: return
 
-        try {
-            if (online) {
-                handleOnlineLogin(c, nextLogin)
-            } else {
-                handleOfflineLogin(c, nextLogin)
-            }
-        } catch (e: Exception) {
-            c.close()
+        val nextLogin = handleHandshake(connection) ?: return
+
+        val playerConnection = if (online) {
+            handleOnlineLogin(connection, nextLogin)
+        } else {
+            handleOfflineLogin(connection, nextLogin)
         }
-        c.coroutineContext.join()
+
+
+        playerConnection.packetProxy()
     }
 
 

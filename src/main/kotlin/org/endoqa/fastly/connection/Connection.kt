@@ -19,9 +19,17 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
 
     override val coroutineContext = Job(parentJob)
 
+
     val packetOut = Channel<RawPacket>()
 
     private var encryption = false
+
+    init {
+        coroutineContext.invokeOnCompletion {
+            packetOut.close(it)
+            socket.close()
+        }
+    }
 
 
     lateinit var encryptCipher: Cipher
@@ -32,15 +40,13 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         private set
 
 
-    init {
-        coroutineContext.invokeOnCompletion {
-            socket.close()
-        }
-    }
-
     fun startIO() {
         launch {
-            outgoingLoop()
+            try {
+                outgoingLoop()
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -51,7 +57,7 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
                 writeRawPacket(p)
                 p.attachJob?.complete()
             } else {
-                coroutineContext.cancelAndJoin()
+                coroutineContext.cancel()
                 return
             }
         }
@@ -137,7 +143,6 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
     }
 
     fun close() {
-        socket.channel.close()
         this.coroutineContext.complete()
     }
 }
