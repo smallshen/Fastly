@@ -53,18 +53,16 @@ class FastlyServer(
             try {
                 handleConnection(c)
                 c.coroutineContext.join()
-            } catch (e: Throwable) {
-                println("Caught exception: ${e.message}")
-            } finally {
+            } catch (e: Exception) {
                 c.cancel()
-                yield()
-                c.coroutineContext.join() // no memory leaks
             }
+
+            yield()
+            c.coroutineContext.join() // no memory leaks
         }
     }
 
     private suspend fun handleConnection(connection: Connection) {
-
 
         val nextLogin = handleHandshake(connection) ?: return
 

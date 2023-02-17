@@ -3,7 +3,7 @@ package org.endoqa.fastly
 import org.endoqa.fastly.connection.Connection
 import org.endoqa.fastly.connection.PlayerConnection
 import org.endoqa.fastly.nio.ByteBuf
-import org.endoqa.fastly.player.PlayerInfo
+import org.endoqa.fastly.player.GameProfile
 import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import java.util.*
@@ -18,25 +18,12 @@ suspend fun FastlyServer.handleOfflineLogin(
 
     val packet = LoginStartPacket.read(ByteBuf(rp.buffer.position(0)))
 
-
-    val playerConnection = PlayerConnection(connection)
-    playerConnection.connectToBackend(backendServers.first()) //TODO: easy to tell it is todo
-
-
-    val backend = playerConnection.backendConnection
-    backend.startIO()
-
-    backend.sendPacket(handshakePacket)
+    val playerConnection = PlayerConnection(connection, handshakePacket)
 
     val uuid = UUID.nameUUIDFromBytes("OfflinePlayer:${packet.name}".toByteArray())
+    playerConnection.profile = GameProfile(packet.name, uuid.toString(), emptyList())
 
-    val loginStartPacket = LoginStartPacket(
-        name = packet.name,
-        hasPlayerUUID = true,
-        playerUUID = uuid,
-    )
-    backend.sendPacket(loginStartPacket)
-    playerConnection.playerInfo = PlayerInfo(uuid, packet.name)
+    playerConnection.connectToBackend(backendServers.first(), this)
 
     return playerConnection
 }

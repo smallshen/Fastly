@@ -9,6 +9,7 @@ import org.endoqa.fastly.nio.ComplexAsyncSocket
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.RawPacket
 import org.endoqa.fastly.util.calculateVarIntSize
+import java.io.IOException
 import java.nio.ByteBuffer
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
@@ -44,8 +45,8 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         launch {
             try {
                 outgoingLoop()
-            } catch (e: Throwable) {
-                e.printStackTrace()
+            } catch (e: Exception) {
+                this@Connection.cancel()
             }
         }
     }
@@ -53,12 +54,13 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
 
     private suspend fun outgoingLoop() {
         for (p in packetOut) {
+            if (!isActive) return
+
             if (socket.channel.isOpen) {
                 writeRawPacket(p)
                 p.attachJob?.complete()
             } else {
-                coroutineContext.cancel()
-                return
+                throw IOException("Socket closed")
             }
         }
     }
