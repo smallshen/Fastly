@@ -11,6 +11,9 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginPluginResponsePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import org.endoqa.fastly.protocol.packet.server.login.LoginPluginRequestPacket
+import org.endoqa.fastly.protocol.packet.server.play.DisconnectPlayPacket
+import org.endoqa.fastly.protocol.packet.server.play.JoinGamePacket
+import org.endoqa.fastly.protocol.packet.server.play.RespawnPacket
 import org.endoqa.fastly.remoteAddressAsString
 import java.net.InetSocketAddress
 import java.nio.channels.AsynchronousSocketChannel
@@ -24,6 +27,8 @@ class PlayerConnection(
     lateinit var backendConnection: Connection
         private set
 
+    private var spawned = false
+
 
     suspend fun connectToBackend(target: BackendServer, server: FastlyServer) {
 
@@ -32,9 +37,22 @@ class PlayerConnection(
         }
 
         val socket = AsyncSocket(channel)
-        socket.connect(InetSocketAddress(target.address, target.port))
+
         val backend = Connection(socket, connection.coroutineContext)
+
+        connection.launch {
+            try {
+                backend.coroutineContext.join()
+            } finally {
+                backend.socket.close()
+            }
+        }
+
+        socket.connect(InetSocketAddress(target.address, target.port))
+
         backendConnection = backend
+
+
 
         backend.startIO()
 
@@ -49,7 +67,22 @@ class PlayerConnection(
         val loginSuccessRp = backend.readRawPacket()
         require(loginSuccessRp.packetId == 0x02) { "Expected login success packet, got ${loginSuccessRp.packetId}" }
 
-        connection.packetOut.send(loginSuccessRp)
+        if (spawned) {
+            val joinGame = backend.readRawPacket()
+            require(joinGame.packetId == 0x24) { "Expected join game packet, got ${joinGame.packetId}" }
+
+            val joinGamePacket = JoinGamePacket.read(ByteBuf(joinGame.buffer.position(0)))
+            joinGame.buffer.position(0)
+
+            connection.packetOut.send(joinGame)
+
+            val respawn = RespawnPacket.fromJoinGamePacket(joinGamePacket)
+
+            connection.sendPacket(respawn)
+        } else {
+            spawned = true
+            connection.packetOut.send(loginSuccessRp)
+        }
     }
 
     private suspend fun onlineModeHandshake(backend: Connection, server: FastlyServer) {
@@ -75,8 +108,21 @@ class PlayerConnection(
             try {
                 while (isActive) {
                     val p = backendConnection.readRawPacket()
-                    connection.packetOut.send(p)
+
+                    when (p.packetId) {
+                        DisconnectPlayPacket.packetId -> {
+                            //TODO: fallback handlers
+                            throw Exception("Disconnected from backend")
+                        }
+
+                        else -> {
+                            connection.packetOut.send(p)
+                        }
+                    }
+
+
                     yield()
+
                 }
             } catch (e: Exception) {
                 coroutineContext.job.cancel()

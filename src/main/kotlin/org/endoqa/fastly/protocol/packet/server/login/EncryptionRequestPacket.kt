@@ -5,7 +5,7 @@ import org.endoqa.fastly.nio.DataWritable
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
 import org.endoqa.fastly.util.calculateVarIntSize
-import org.endoqa.fastly.util.estimateStringSizeInBytes
+import org.endoqa.fastly.util.estimateProtocolSizeInBytes
 
 data class EncryptionRequestPacket(
     val serverID: String,
@@ -36,7 +36,7 @@ data class EncryptionRequestPacket(
     }
 
     override fun estimateSize(): Int {
-        return serverID.estimateStringSizeInBytes +
+        return serverID.estimateProtocolSizeInBytes +
                 calculateVarIntSize(publicKey.size) + publicKey.size +
                 calculateVarIntSize(verifyToken.size) + verifyToken.size
     }

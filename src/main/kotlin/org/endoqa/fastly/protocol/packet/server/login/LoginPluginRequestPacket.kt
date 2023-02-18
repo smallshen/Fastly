@@ -4,7 +4,7 @@ import org.endoqa.fastly.nio.DataReadable
 import org.endoqa.fastly.nio.DataWritable
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
-import org.endoqa.fastly.util.estimateStringSizeInBytes
+import org.endoqa.fastly.util.estimateProtocolSizeInBytes
 
 class LoginPluginRequestPacket(
     val messageId: Int,
@@ -35,7 +35,7 @@ class LoginPluginRequestPacket(
 
 
     override fun estimateSize(): Int {
-        return 5 + channel.estimateStringSizeInBytes + (data?.size ?: 0)
+        return 5 + channel.estimateProtocolSizeInBytes + (data?.size ?: 0)
     }
 
     override fun toString(): String {

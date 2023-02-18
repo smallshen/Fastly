@@ -4,7 +4,7 @@ import org.endoqa.fastly.nio.DataReadable
 import org.endoqa.fastly.nio.DataWritable
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
-import org.endoqa.fastly.util.estimateStringSizeInBytes
+import org.endoqa.fastly.util.estimateProtocolSizeInBytes
 
 class DisconnectPacket(val reason: String) : MinecraftPacket {
 
@@ -21,7 +21,7 @@ class DisconnectPacket(val reason: String) : MinecraftPacket {
     }
 
     override fun estimateSize(): Int {
-        return reason.estimateStringSizeInBytes
+        return reason.estimateProtocolSizeInBytes
     }
 
 }

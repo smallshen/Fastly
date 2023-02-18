@@ -15,7 +15,7 @@ import javax.crypto.spec.SecretKeySpec
 class FastlyServer(
     private val port: Int,
     val online: Boolean = false, //TODO: default to true in the future
-    val forwardSecret: String
+    forwardSecret: String
 ) : CoroutineScope {
 
     override val coroutineContext = SupervisorJob()
@@ -37,9 +37,13 @@ class FastlyServer(
 
 
     suspend fun start() {
-        while (true) {
-            val channel = wrapper.accept()
-            doWork(channel)
+        while (isActive) {
+            try {
+                val channel = wrapper.accept()
+                doWork(channel)
+            } catch (e: Exception) {
+                e.printStackTrace() //TODO: logging here
+            }
         }
     }
 
@@ -54,11 +58,12 @@ class FastlyServer(
                 handleConnection(c)
                 c.coroutineContext.join()
             } catch (e: Exception) {
+                e.printStackTrace()
                 c.cancel()
             }
 
             yield()
-            c.coroutineContext.join() // no memory leaks
+            c.coroutineContext.join() // no memory leaks, i guess
         }
     }
 
@@ -71,7 +76,6 @@ class FastlyServer(
         } else {
             handleOfflineLogin(connection, nextLogin)
         }
-
 
         playerConnection.packetProxy()
     }

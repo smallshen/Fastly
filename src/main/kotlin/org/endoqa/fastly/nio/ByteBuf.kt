@@ -1,5 +1,6 @@
 package org.endoqa.fastly.nio
 
+import org.endoqa.fastly.util.protocol.nbt.NBT
 import org.endoqa.fastly.util.protocol.writeVarInt
 import java.nio.ByteBuffer
 import java.util.*
@@ -9,6 +10,30 @@ val EMPTY_BYTE_ARRAY = ByteArray(0)
 @JvmInline
 value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
 
+
+    override fun readByte(): Byte {
+        return buf.get()
+    }
+
+    override fun readUnsignedByte(): UByte {
+        return buf.get().toUByte()
+    }
+
+    override fun writeByte(byte: Byte) {
+        buf.put(byte)
+    }
+
+    override fun writeUnsignedByte(uByte: UByte) {
+        buf.put(uByte.toByte())
+    }
+
+    override fun writeFloat(float: Float) {
+        buf.putFloat(float)
+    }
+
+    override fun writeDouble(double: Double) {
+        buf.putDouble(double)
+    }
 
     override fun readUnsignedShort(): UShort {
         return buf.short.toUShort()
@@ -87,5 +112,40 @@ value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
 
     override fun writeVarInt(int: Int) {
         writeVarInt(int) { buf.put(it) }
+    }
+
+    override fun readNBT(): NBT = NBT.pull(buf)
+
+
+    override fun writeNBT(nbt: NBT) {
+        nbt.push(buf)
+    }
+
+    override fun readShort(): Short {
+        return buf.short
+    }
+
+    override fun readFloat(): Float {
+        return buf.float
+    }
+
+    override fun readDouble(): Double {
+        return buf.double
+    }
+
+    override fun writeShort(short: Short) {
+        buf.putShort(short)
+    }
+
+    override fun readInt(): Int {
+        return buf.int
+    }
+
+    override fun writeInt(int: Int) {
+        buf.putInt(int)
+    }
+
+    override fun available(): Int {
+        return buf.remaining()
     }
 }

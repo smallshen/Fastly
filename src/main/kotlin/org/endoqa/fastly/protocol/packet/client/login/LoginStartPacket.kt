@@ -4,7 +4,7 @@ import org.endoqa.fastly.nio.DataReadable
 import org.endoqa.fastly.nio.DataWritable
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
-import org.endoqa.fastly.util.estimateStringSizeInBytes
+import org.endoqa.fastly.util.estimateProtocolSizeInBytes
 import java.util.*
 
 data class LoginStartPacket(
@@ -35,7 +35,7 @@ data class LoginStartPacket(
     }
 
     override fun estimateSize(): Int {
-        return name.estimateStringSizeInBytes +
+        return name.estimateProtocolSizeInBytes +
                 1 +
                 if (hasPlayerUUID) (2 * 8) else 0
     }

@@ -8,7 +8,12 @@ package org.endoqa.fastly.util
  *
  *  The + 3 is due to the max size of a valid length VarInt.
  */
-val String.estimateStringSizeInBytes: Int
+val String.estimateProtocolSizeInBytes: Int
     get() {
         return (length * 4) + 3
+    }
+
+val String.protocolSizeInBytes: Int
+    get() {
+        return length + 3
     }

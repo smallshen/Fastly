@@ -4,7 +4,7 @@ import org.endoqa.fastly.nio.DataReadable
 import org.endoqa.fastly.nio.DataWritable
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
-import org.endoqa.fastly.util.estimateStringSizeInBytes
+import org.endoqa.fastly.util.estimateProtocolSizeInBytes
 
 data class StatusResponsePacket(val response: String) : MinecraftPacket {
     override val handler: PacketHandler<StatusResponsePacket> = StatusResponsePacket
@@ -23,6 +23,6 @@ data class StatusResponsePacket(val response: String) : MinecraftPacket {
 
 
     override fun estimateSize(): Int {
-        return response.estimateStringSizeInBytes
+        return response.estimateProtocolSizeInBytes
     }
 }

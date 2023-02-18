@@ -6,7 +6,7 @@ import org.endoqa.fastly.player.Property
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
 import org.endoqa.fastly.util.calculateVarIntSize
-import org.endoqa.fastly.util.estimateStringSizeInBytes
+import org.endoqa.fastly.util.estimateProtocolSizeInBytes
 import java.util.*
 
 private val maxUsernameVarIntSize = calculateVarIntSize(16)
@@ -56,9 +56,9 @@ data class LoginSuccessPacket(
                 maxUsernameVarIntSize +
                 5 +
                 properties.sumOf { (name, value, sig) ->
-                    name.estimateStringSizeInBytes +
-                            value.estimateStringSizeInBytes +
-                            1 + (sig?.estimateStringSizeInBytes ?: 0)
+                    name.estimateProtocolSizeInBytes +
+                            value.estimateProtocolSizeInBytes +
+                            1 + (sig?.estimateProtocolSizeInBytes ?: 0)
                 }
 
     }

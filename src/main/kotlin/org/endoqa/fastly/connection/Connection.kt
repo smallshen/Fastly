@@ -4,13 +4,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import org.endoqa.fastly.encryption.EncryptedComplexAsyncSocket
 import org.endoqa.fastly.nio.AsyncSocket
-import org.endoqa.fastly.nio.ByteBuf
 import org.endoqa.fastly.nio.ComplexAsyncSocket
 import org.endoqa.fastly.protocol.MinecraftPacket
+import org.endoqa.fastly.protocol.PacketHandler
 import org.endoqa.fastly.protocol.RawPacket
 import org.endoqa.fastly.util.calculateVarIntSize
 import java.io.IOException
-import java.nio.ByteBuffer
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.spec.IvParameterSpec
@@ -24,13 +23,6 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
     val packetOut = Channel<RawPacket>()
 
     private var encryption = false
-
-    init {
-        coroutineContext.invokeOnCompletion {
-            packetOut.close(it)
-            socket.close()
-        }
-    }
 
 
     lateinit var encryptCipher: Cipher
@@ -121,11 +113,7 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
     }
 
     suspend fun sendPacket(p: MinecraftPacket): CompletableJob {
-        val buf = ByteBuffer.allocate(p.estimateSize())
-
-        @Suppress("TYPE_MISMATCH")
-        p.handler.write(ByteBuf(buf), p)
-        buf.flip()
+        val buf = PacketHandler.encodePacket(p)
 
         val job = Job()
 

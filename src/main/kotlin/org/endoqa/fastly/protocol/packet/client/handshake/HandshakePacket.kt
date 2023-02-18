@@ -5,7 +5,7 @@ import org.endoqa.fastly.nio.DataWritable
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
 import org.endoqa.fastly.util.calculateVarIntSize
-import org.endoqa.fastly.util.estimateStringSizeInBytes
+import org.endoqa.fastly.util.estimateProtocolSizeInBytes
 
 // now is around 700, hope no one use this in the future
 private val maxProtocolVersionVarIntSize = calculateVarIntSize(1000)
@@ -42,7 +42,7 @@ data class HandshakePacket(
 
     override fun estimateSize(): Int {
         return maxProtocolVersionVarIntSize +
-                serverAddress.estimateStringSizeInBytes +
+                serverAddress.estimateProtocolSizeInBytes +
                 maxPortVarIntSize +
                 NEXT_STATE_VARINT_SIZE
 
