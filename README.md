@@ -8,12 +8,16 @@ A minecraft reverse proxy
 - [x] online verify user
 - [x] connect to backend server
 - [x] encryption
+- [ ] packet filter to prevent pass through
 - [x] velocity modern player info forwarding
 - [ ] compression
 - [ ] plugin message
+- [x] switch backend server
 - [ ] clear bossbar on switch server
 - [ ] clear titles on switch server
 - [ ] clear tablist on switch server
+- [ ] Common Expression Language support (maybe)
+- [ ] wasm plugin system (maybe)
 
 ## What can this do?
 
