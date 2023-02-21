@@ -11,7 +11,7 @@ A minecraft reverse proxy
 - [ ] packet filter to prevent pass through
 - [ ] packet caching
 - [x] velocity modern player info forwarding
-- [ ] compression
+- [x] compression
 - [ ] plugin message
 - [x] switch backend server
 - [ ] clear bossbar on switch server
