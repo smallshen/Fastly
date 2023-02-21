@@ -9,6 +9,7 @@ A minecraft reverse proxy
 - [x] connect to backend server
 - [x] encryption
 - [ ] packet filter to prevent pass through
+- [ ] packet caching
 - [x] velocity modern player info forwarding
 - [ ] compression
 - [ ] plugin message
