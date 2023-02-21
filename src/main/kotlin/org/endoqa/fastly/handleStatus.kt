@@ -1,6 +1,7 @@
 package org.endoqa.fastly
 
 import org.endoqa.fastly.connection.Connection
+import org.endoqa.fastly.exception.MalformedException
 import org.endoqa.fastly.protocol.packet.server.handshake.PongResponse
 import org.endoqa.fastly.protocol.packet.server.handshake.StatusResponsePacket
 import org.tinylog.kotlin.Logger
@@ -19,7 +20,9 @@ suspend fun handleStatus(connection: Connection) {
         }
 
         0x01 -> connection.sendPacket(PongResponse(System.currentTimeMillis()))
-        else -> Logger.error("${connection.socket.channel.remoteAddress} sent invalid packet id during status")
+        else -> {
+            Logger.error("${connection.socket.channel.remoteAddress} sent invalid packet id during status")
+        }
     }
 
 
@@ -33,7 +36,7 @@ suspend fun handlePing(connection: Connection) {
 
     if (packet.packetId != 0x01) {
         Logger.error("${connection.socket.channel.remoteAddress} sent invalid packet id during ping")
-        error("Invalid packet id: ${packet.packetId} (expected 0x01)")
+        throw MalformedException("Invalid packet id: ${packet.packetId} (expected 0x01)")
     }
 
     connection.sendPacket(PongResponse(System.currentTimeMillis()))

@@ -7,6 +7,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousCloseException
 import java.nio.channels.AsynchronousSocketChannel
 import java.nio.channels.CompletionHandler
+import java.nio.channels.ShutdownChannelGroupException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -68,7 +69,7 @@ value class AsyncSocket(val channel: AsynchronousSocketChannel) {
                         // empty
                         when (result) {
                             -1 -> {
-                                channel.close()
+                                close()
                                 continuation.resumeWithException(AsynchronousCloseException())
                             }
 
@@ -78,12 +79,14 @@ value class AsyncSocket(val channel: AsynchronousSocketChannel) {
                     }
 
                     override fun failed(exc: Throwable, attachment: Unit?) {
-                        channel.close()
+                        close()
                         continuation.resumeWithException(exc)
                     }
 
                 }
             )
+        } catch (e: ShutdownChannelGroupException) {
+            continuation.resumeWithException(AsynchronousCloseException())
         } catch (e: Throwable) {
             continuation.resumeWithException(e)
         }
@@ -99,18 +102,22 @@ value class AsyncSocket(val channel: AsynchronousSocketChannel) {
                 object : WriteHandler {
                     override fun completed(result: Int, attachment: Unit?) {
                         if (result == -1) {
-                            continuation.resumeWithException(RuntimeException("Connection closed because result is -1"))
+                            close()
+                            continuation.resumeWithException(AsynchronousCloseException())
                         } else {
                             continuation.resume(Unit)
                         }
                     }
 
                     override fun failed(exc: Throwable, attachment: Unit?) {
+                        close()
                         continuation.resumeWithException(exc)
                     }
 
                 }
             )
+        } catch (e: ShutdownChannelGroupException) {
+            continuation.resumeWithException(AsynchronousCloseException())
         } catch (e: Throwable) {
             continuation.resumeWithException(e)
         }
