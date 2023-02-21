@@ -4,6 +4,7 @@ import kotlinx.coroutines.*
 import org.endoqa.fastly.connection.Connection
 import org.endoqa.fastly.nio.AsyncServerSocket
 import org.endoqa.fastly.nio.AsyncSocket
+import org.tinylog.Logger
 import java.net.InetSocketAddress
 import java.nio.channels.AsynchronousServerSocketChannel
 import java.nio.channels.AsynchronousSocketChannel
@@ -15,6 +16,7 @@ import javax.crypto.spec.SecretKeySpec
 class FastlyServer(
     private val port: Int,
     val online: Boolean = false, //TODO: default to true in the future
+    val compressionThreshold: Int = 256,
     forwardSecret: String
 ) : CoroutineScope {
 
@@ -41,8 +43,8 @@ class FastlyServer(
             try {
                 val channel = wrapper.accept()
                 doWork(channel)
-            } catch (e: Exception) {
-                e.printStackTrace() //TODO: logging here
+            } catch (e: Throwable) {
+                Logger.error(e, "Error accepting connection")
             }
         }
     }
@@ -51,19 +53,14 @@ class FastlyServer(
         launch {
             val channelWrapper = AsyncSocket(channel)
 
-            val c = Connection(channelWrapper, coroutineContext.job)
-            c.startIO()
-
+            val connection = Connection(channelWrapper, coroutineContext.job)
             try {
-                handleConnection(c)
-                c.coroutineContext.join()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                c.cancel()
+                handleConnection(connection)
+                connection.coroutineContext.join()
+            } finally {
+                connection.close()
             }
 
-            yield()
-            c.coroutineContext.join() // no memory leaks, i guess
         }
     }
 

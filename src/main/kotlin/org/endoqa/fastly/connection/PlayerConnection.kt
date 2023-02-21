@@ -11,24 +11,35 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginPluginResponsePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import org.endoqa.fastly.protocol.packet.server.login.LoginPluginRequestPacket
-import org.endoqa.fastly.protocol.packet.server.play.DisconnectPlayPacket
 import org.endoqa.fastly.protocol.packet.server.play.JoinGamePacket
 import org.endoqa.fastly.protocol.packet.server.play.RespawnPacket
 import org.endoqa.fastly.remoteAddressAsString
+import org.tinylog.kotlin.Logger
 import java.net.InetSocketAddress
 import java.nio.channels.AsynchronousSocketChannel
 
 class PlayerConnection(
     val connection: Connection,
+    val profile: GameProfile,
     private val handshakePacket: HandshakePacket,
 ) : CoroutineScope by connection {
 
-    lateinit var profile: GameProfile
     lateinit var backendConnection: Connection
         private set
 
     private var spawned = false
 
+    init {
+        Logger.info("${connection.socket.channel.remoteAddress} ${profile.name}(${profile.uuid}) logged in")
+        launch {
+            try {
+                connection.coroutineContext.join()
+            } finally {
+                backendConnection.close()
+                Logger.info("${profile.name}(${profile.uuid}) logged out")
+            }
+        }
+    }
 
     suspend fun connectToBackend(target: BackendServer, server: FastlyServer) {
 
@@ -40,11 +51,13 @@ class PlayerConnection(
 
         val backend = Connection(socket, connection.coroutineContext)
 
+
         connection.launch {
             try {
                 backend.coroutineContext.join()
             } finally {
-                backend.socket.close()
+                backend.close()
+                Logger.debug("Backend connection closed for ${profile.name}(${profile.uuid})")
             }
         }
 
@@ -52,13 +65,8 @@ class PlayerConnection(
 
         backendConnection = backend
 
-
-
-        backend.startIO()
-
         backend.sendPacket(handshakePacket)
         backend.sendPacket(LoginStartPacket(profile.name, true, profile.uuid))
-
 
         if (server.online) {
             onlineModeHandshake(backend, server)
@@ -74,14 +82,15 @@ class PlayerConnection(
             val joinGamePacket = JoinGamePacket.read(ByteBuf(joinGame.buffer.position(0)))
             joinGame.buffer.position(0)
 
-            connection.packetOut.send(joinGame)
+            connection.writeRawPacket(joinGame)
 
             val respawn = RespawnPacket.fromJoinGamePacket(joinGamePacket)
 
             connection.sendPacket(respawn)
         } else {
             spawned = true
-            connection.packetOut.send(loginSuccessRp)
+            connection.enableCompression(server.compressionThreshold)
+            connection.writeRawPacket(loginSuccessRp)
         }
     }
 
@@ -104,40 +113,34 @@ class PlayerConnection(
 
 
     fun packetProxy() {
+
+        val backendJob = backendConnection.coroutineContext
+
         backendConnection.launch {
             try {
                 while (isActive) {
                     val p = backendConnection.readRawPacket()
 
-                    when (p.packetId) {
-                        DisconnectPlayPacket.packetId -> {
-                            //TODO: fallback handlers
-                            throw Exception("Disconnected from backend")
-                        }
-
-                        else -> {
-                            connection.packetOut.send(p)
-                        }
-                    }
-
-
+                    connection.writeRawPacket(p)
                     yield()
-
                 }
-            } catch (e: Exception) {
-                coroutineContext.job.cancel()
+            } catch (e: CancellationException) {
+                // ignore
+            } catch (e: Throwable) {
+                backendJob.cancel("Canceled due to error", e)
             }
         }
 
         backendConnection.launch {
             try {
                 while (isActive) {
-                    val p = connection.readRawPacket()
-                    backendConnection.packetOut.send(p)
+                    backendConnection.writeRawPacket(connection.readRawPacket())
                     yield()
                 }
-            } catch (e: Exception) {
-                coroutineContext.job.cancel()
+            } catch (e: CancellationException) {
+                // ignore
+            } catch (e: Throwable) {
+                backendJob.cancel("Canceled due to error", e)
             }
         }
 

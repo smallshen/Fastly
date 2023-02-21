@@ -71,8 +71,7 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
 
     require(profile.uuid == loginStartPacket.playerUUID) { "UUID is not correct" }
 
-    val playerCon = PlayerConnection(connection, handshakePacket)
-    playerCon.profile = profile
+    val playerCon = PlayerConnection(connection, profile, handshakePacket)
 
     playerCon.connectToBackend(backendServers.first(), this)
 

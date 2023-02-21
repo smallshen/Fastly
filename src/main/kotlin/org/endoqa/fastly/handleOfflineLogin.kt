@@ -18,10 +18,12 @@ suspend fun FastlyServer.handleOfflineLogin(
 
     val packet = LoginStartPacket.read(ByteBuf(rp.buffer.position(0)))
 
-    val playerConnection = PlayerConnection(connection, handshakePacket)
-
     val uuid = UUID.nameUUIDFromBytes("OfflinePlayer:${packet.name}".toByteArray())
-    playerConnection.profile = GameProfile(packet.name, uuid.toString(), emptyList())
+    val profile = GameProfile(packet.name, uuid.toString().replace("-", ""), emptyList())
+
+    val playerConnection = PlayerConnection(connection, profile, handshakePacket)
+
+
 
     playerConnection.connectToBackend(backendServers.first(), this)
 

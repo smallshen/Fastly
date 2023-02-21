@@ -1,26 +1,33 @@
 package org.endoqa.fastly.connection
 
-import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import org.endoqa.fastly.encryption.EncryptedComplexAsyncSocket
 import org.endoqa.fastly.nio.AsyncSocket
+import org.endoqa.fastly.nio.ByteBuf
 import org.endoqa.fastly.nio.ComplexAsyncSocket
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
 import org.endoqa.fastly.protocol.RawPacket
+import org.endoqa.fastly.protocol.packet.server.login.SetCompressionPacket
 import org.endoqa.fastly.util.calculateVarIntSize
-import java.io.IOException
+import java.nio.ByteBuffer
+import java.util.zip.Deflater
+import java.util.zip.Inflater
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.spec.IvParameterSpec
 
 
-class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineScope {
+class Connection(
+    val socket: AsyncSocket,
+    parentJob: Job? = null
+) : CoroutineScope, AutoCloseable {
+
+
+    var compressionThreshold: Int = -1
 
     override val coroutineContext = Job(parentJob)
-
-
-    val packetOut = Channel<RawPacket>()
 
     private var encryption = false
 
@@ -33,29 +40,16 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         private set
 
 
-    fun startIO() {
-        launch {
-            try {
-                outgoingLoop()
-            } catch (e: Exception) {
-                this@Connection.cancel()
-            }
-        }
+    private val deflater by lazy { Deflater() }
+    private val inflater by lazy { Inflater() }
+
+
+    suspend fun enableCompression(threshold: Int) {
+        val p = SetCompressionPacket(threshold)
+        sendPacket(p)
+        compressionThreshold = threshold
     }
 
-
-    private suspend fun outgoingLoop() {
-        for (p in packetOut) {
-            if (!isActive) return
-
-            if (socket.channel.isOpen) {
-                writeRawPacket(p)
-                p.attachJob?.complete()
-            } else {
-                throw IOException("Socket closed")
-            }
-        }
-    }
 
     suspend fun readRawPacket(): RawPacket {
         return if (encryption) {
@@ -68,25 +62,21 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
 
     private suspend fun readNormal(): RawPacket {
         val cs = ComplexAsyncSocket(socket.channel)
-        val length = cs.readVarInt()
-        val packetId = cs.readVarInt()
-        val actualDataLength = length - calculateVarIntSize(packetId)
-        val pData = cs.readFully(actualDataLength).position(0)
-        val rawPacket = RawPacket(length, packetId, pData)
-
-        return rawPacket
+        return readPacket(
+            readVarInt = { cs.readVarInt() },
+            readFully = { cs.readFully(it).position(0) }
+        )
     }
 
     private suspend fun readEncrypted(): RawPacket {
-        val cs = EncryptedComplexAsyncSocket(socket.channel)
-        val length = cs.readVarInt(decryptCipher)
-        val packetId = cs.readVarInt(decryptCipher)
-        val actualDataLength = length - calculateVarIntSize(packetId)
-        val pData = cs.readFully(actualDataLength, decryptCipher).flip()
-        return RawPacket(length, packetId, pData)
+        val cs = EncryptedComplexAsyncSocket(this)
+        return readPacket(
+            readVarInt = { cs.readVarInt() },
+            readFully = { cs.readFully(it).position(0) }
+        )
     }
 
-    private suspend fun writeRawPacket(packet: RawPacket) {
+    suspend fun writeRawPacket(packet: RawPacket) {
         if (encryption) {
             writeEncrypted(packet)
         } else {
@@ -95,31 +85,124 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
     }
 
     private suspend fun writeNormal(packet: RawPacket) {
-        val (length, packetId, buffer) = packet
-
         val cs = ComplexAsyncSocket(socket.channel)
-        cs.writeVarInt(length)
-        cs.writeVarInt(packetId)
-        cs.write(buffer.position(0))
+        writePacket(
+            packet,
+            writeVarInt = { cs.writeVarInt(it) },
+            writeFully = { cs.write(it) }
+        )
     }
 
     private suspend fun writeEncrypted(packet: RawPacket) {
-        val (length, packetId, buffer) = packet
-
-        val cs = EncryptedComplexAsyncSocket(socket.channel)
-        cs.writeVarInt(length, encryptCipher)
-        cs.writeVarInt(packetId, encryptCipher)
-        cs.write(buffer.position(0), encryptCipher)
+        val cs = EncryptedComplexAsyncSocket(this)
+        writePacket(
+            packet,
+            writeVarInt = { cs.writeVarInt(it) },
+            writeFully = { cs.write(it) }
+        )
     }
 
-    suspend fun sendPacket(p: MinecraftPacket): CompletableJob {
+    private inline fun readPacket(
+        readVarInt: () -> Int,
+        readFully: (Int) -> ByteBuffer
+    ): RawPacket {
+        return if (compressionThreshold >= 0) {
+            readCompressedPacket(readVarInt, readFully)
+        } else {
+            val length = readVarInt()
+            val packetId = readVarInt()
+            val actualDataLength = length - calculateVarIntSize(packetId)
+            val pData = readFully(actualDataLength).position(0)
+            return RawPacket(length, packetId, pData)
+        }
+    }
+
+
+    private inline fun readCompressedPacket(
+        readVarInt: () -> Int,
+        readFully: (Int) -> ByteBuffer
+    ): RawPacket {
+        val compressedSize = readVarInt()
+        val dataLength = readVarInt()
+        val rawBuffer = readFully(compressedSize - calculateVarIntSize(dataLength))
+
+        if (dataLength == 0) {
+            val packetId = ByteBuf(rawBuffer).readVarInt()
+
+            return RawPacket(rawBuffer.limit(), packetId, rawBuffer.slice())
+        } else {
+            val decompressedBuffer = ByteBuffer.allocate(dataLength)
+
+            inflater.setInput(rawBuffer.position(0))
+            require(inflater.inflate(decompressedBuffer) == dataLength) { "Decompressed data length is not equal to the data length" }
+            inflater.reset()
+
+            decompressedBuffer.flip()
+
+            val packetId = ByteBuf(decompressedBuffer).readVarInt()
+
+            return RawPacket(dataLength, packetId, decompressedBuffer.slice())
+        }
+    }
+
+
+    private inline fun writePacket(
+        packet: RawPacket,
+        writeVarInt: (Int) -> Unit,
+        writeFully: (ByteBuffer) -> Unit
+    ) {
+        val (length, packetId, buffer) = packet
+
+        if (compressionThreshold >= 0) {
+            writeCompressedPacket(packet, writeVarInt, writeFully)
+        } else {
+            writeVarInt(length)
+            writeVarInt(packetId)
+            writeFully(buffer.position(0))
+        }
+    }
+
+    private inline fun writeCompressedPacket(
+        packet: RawPacket,
+        writeVarInt: (Int) -> Unit,
+        writeFully: (ByteBuffer) -> Unit
+    ) {
+        val (length, packetId, buffer) = packet
+
+        if (length >= compressionThreshold) {
+            val input = ByteBuffer.allocate(length)
+
+            ByteBuf(input).writeVarInt(packetId)
+            input.put(packet.buffer.position(0))
+            input.flip()
+
+            val output = ByteBuffer.allocate(input.limit() + 10) // ok gzip or minecraft, fuck u
+
+            deflater.setInput(input)
+            deflater.finish()
+            deflater.deflate(output)
+            deflater.reset()
+
+            output.flip()
+
+            writeVarInt(output.limit() + calculateVarIntSize(length))
+            writeVarInt(length)
+            writeFully(output)
+
+        } else {
+            writeVarInt(length + 1)
+            writeVarInt(0)
+            writeVarInt(packetId)
+            writeFully(buffer.position(0))
+        }
+    }
+
+
+    suspend fun sendPacket(p: MinecraftPacket) {
         val buf = PacketHandler.encodePacket(p)
 
-        val job = Job()
-
-        packetOut.send(RawPacket(buf.limit() + p.handler.packetIdSize, p.handler.packetId, buf, job))
-
-        return job
+        val p = RawPacket(buf.limit() + p.handler.packetIdSize, p.handler.packetId, buf)
+        writeRawPacket(p)
     }
 
     fun enableEncryption(secretKey: SecretKey) {
@@ -132,7 +215,10 @@ class Connection(val socket: AsyncSocket, parentJob: Job? = null) : CoroutineSco
         encryption = true
     }
 
-    fun close() {
-        this.coroutineContext.complete()
+    override fun close() {
+        coroutineContext.complete()
+        socket.close()
+        deflater.end()
+        inflater.end()
     }
 }

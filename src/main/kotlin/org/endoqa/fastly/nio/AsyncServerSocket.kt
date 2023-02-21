@@ -14,18 +14,22 @@ value class AsyncServerSocket(private val channel: AsynchronousServerSocketChann
 
 
     suspend fun accept() = suspendCoroutine<AsynchronousSocketChannel> { continuation ->
-        channel.accept(
-            null,
-            object : AcceptHandler {
-                override fun completed(result: AsynchronousSocketChannel, attachment: Unit?) {
-                    continuation.resume(result)
-                }
+        try {
+            channel.accept(
+                null,
+                object : AcceptHandler {
+                    override fun completed(result: AsynchronousSocketChannel, attachment: Unit?) {
+                        continuation.resume(result)
+                    }
 
-                override fun failed(exc: Throwable, attachment: Unit?) {
-                    continuation.resumeWithException(exc)
+                    override fun failed(exc: Throwable, attachment: Unit?) {
+                        continuation.resumeWithException(exc)
+                    }
                 }
-            }
-        )
+            )
+        } catch (e: Throwable) {
+            continuation.resumeWithException(e)
+        }
     }
 
 }

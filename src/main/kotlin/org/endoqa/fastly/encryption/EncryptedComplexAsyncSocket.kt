@@ -1,19 +1,20 @@
 package org.endoqa.fastly.encryption
 
-import org.endoqa.fastly.nio.AsyncSocket
+import org.endoqa.fastly.connection.Connection
 import org.endoqa.fastly.util.protocol.readVarInt
 import org.endoqa.fastly.util.protocol.writeVarInt
 import java.nio.ByteBuffer
-import java.nio.channels.AsynchronousSocketChannel
-import javax.crypto.Cipher
 
 
 @JvmInline
-value class EncryptedComplexAsyncSocket(val channel: AsynchronousSocketChannel) {
+value class EncryptedComplexAsyncSocket(val connection: Connection) {
 
+    private val socket inline get() = connection.socket
 
-    suspend fun readVarInt(decrypt: Cipher): Int {
-        val socket = AsyncSocket(channel)
+    private val encrypt inline get() = connection.encryptCipher
+    private val decrypt inline get() = connection.decryptCipher
+
+    suspend fun readVarInt(): Int {
         val sharedBuf = ByteBuffer.allocate(1)
         val decryptBuf = sharedBuf.duplicate()
 
@@ -30,8 +31,7 @@ value class EncryptedComplexAsyncSocket(val channel: AsynchronousSocketChannel) 
     }
 
 
-    suspend fun writeVarInt(v: Int, encrypt: Cipher) {
-        val socket = AsyncSocket(channel)
+    suspend fun writeVarInt(v: Int) {
         val sharedBuf = ByteBuffer.allocate(1)
         val encryptBuf = sharedBuf.duplicate()
 
@@ -47,18 +47,18 @@ value class EncryptedComplexAsyncSocket(val channel: AsynchronousSocketChannel) 
         }
     }
 
-    suspend fun readFully(len: Int, decrypt: Cipher): ByteBuffer {
-        val buf = AsyncSocket(channel).readFully(len).position(0)
+    suspend fun readFully(len: Int): ByteBuffer {
+        val buf = socket.readFully(len).position(0)
         val dup = buf.duplicate()
 
         decrypt.update(buf, dup)
         return dup
     }
 
-    suspend fun write(buf: ByteBuffer, encrypt: Cipher) {
+    suspend fun write(buf: ByteBuffer) {
         buf.position(0)
         val encryptedBuf = buf.duplicate()
         encrypt.update(buf, encryptedBuf)
-        AsyncSocket(channel).write(encryptedBuf.flip())
+        socket.write(encryptedBuf.flip())
     }
 }

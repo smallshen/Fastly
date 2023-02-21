@@ -1,6 +1,7 @@
 package org.endoqa.fastly.nio
 
 import org.endoqa.fastly.util.protocol.nbt.NBT
+import org.endoqa.fastly.util.protocol.readVarInt
 import org.endoqa.fastly.util.protocol.writeVarInt
 import java.nio.ByteBuffer
 import java.util.*
@@ -44,7 +45,7 @@ value class ByteBuf(private val buf: ByteBuffer) : DataWritable, DataReadable {
     }
 
     override fun readVarInt(): Int {
-        return org.endoqa.fastly.util.protocol.readVarInt { buf.get() }
+        return readVarInt { buf.get() }
     }
 
     override fun readLong() = buf.long
