@@ -201,8 +201,8 @@ class Connection(
     suspend fun sendPacket(p: MinecraftPacket) {
         val buf = PacketHandler.encodePacket(p)
 
-        val p = RawPacket(buf.limit() + p.handler.packetIdSize, p.handler.packetId, buf)
-        writeRawPacket(p)
+        val rp = RawPacket(buf.limit() + p.handler.packetIdSize, p.handler.packetId, buf)
+        writeRawPacket(rp)
     }
 
     fun enableEncryption(secretKey: SecretKey) {

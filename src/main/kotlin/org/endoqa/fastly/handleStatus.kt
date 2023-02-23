@@ -1,14 +1,18 @@
 package org.endoqa.fastly
 
+import kotlinx.coroutines.withTimeout
 import org.endoqa.fastly.connection.Connection
 import org.endoqa.fastly.exception.MalformedException
 import org.endoqa.fastly.protocol.packet.server.handshake.PongResponse
 import org.endoqa.fastly.protocol.packet.server.handshake.StatusResponsePacket
 import org.tinylog.kotlin.Logger
+import kotlin.time.Duration.Companion.seconds
 
 
 suspend fun handleStatus(connection: Connection) {
-    val packet = connection.readRawPacket()
+    val packet = withTimeout(30.seconds) {
+        connection.readRawPacket()
+    }
     val (_, packetId, _) = packet
 
     when (packetId) {
@@ -32,7 +36,9 @@ suspend fun handleStatus(connection: Connection) {
 }
 
 suspend fun handlePing(connection: Connection) {
-    val packet = connection.readRawPacket()
+    val packet = withTimeout(30.seconds) {
+        connection.readRawPacket()
+    }
 
     if (packet.packetId != 0x01) {
         Logger.error("${connection.socket.channel.remoteAddress} sent invalid packet id during ping")

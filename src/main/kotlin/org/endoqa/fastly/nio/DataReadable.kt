@@ -1,6 +1,6 @@
 package org.endoqa.fastly.nio
 
-import org.endoqa.fastly.util.protocol.nbt.NBT
+import org.endoqa.fastly.nbt.NBT
 import java.util.*
 
 interface DataReadable {

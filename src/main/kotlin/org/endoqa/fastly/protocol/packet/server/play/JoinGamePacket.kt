@@ -1,11 +1,11 @@
 package org.endoqa.fastly.protocol.packet.server.play
 
+import org.endoqa.fastly.nbt.NBT
 import org.endoqa.fastly.nio.DataReadable
 import org.endoqa.fastly.nio.DataWritable
 import org.endoqa.fastly.protocol.MinecraftPacket
 import org.endoqa.fastly.protocol.PacketHandler
 import org.endoqa.fastly.util.protocol.Position
-import org.endoqa.fastly.util.protocol.nbt.NBT
 import org.endoqa.fastly.util.protocolSizeInBytes
 
 class JoinGamePacket(

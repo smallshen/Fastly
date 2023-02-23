@@ -1,8 +1,8 @@
 package org.endoqa.fastly.nio
 
 
+import org.endoqa.fastly.nbt.NBT
 import org.endoqa.fastly.util.estimateProtocolSizeInBytes
-import org.endoqa.fastly.util.protocol.nbt.NBT
 import java.nio.ByteBuffer
 import java.util.*
 import kotlin.math.max

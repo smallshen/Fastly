@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package org.endoqa.fastly.util.protocol.nbt
+package org.endoqa.fastly.nbt
 
 import org.endoqa.fastly.nio.ByteBuf
 import org.endoqa.fastly.nio.DataReadable

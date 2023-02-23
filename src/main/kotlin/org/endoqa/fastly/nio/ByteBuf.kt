@@ -1,6 +1,6 @@
 package org.endoqa.fastly.nio
 
-import org.endoqa.fastly.util.protocol.nbt.NBT
+import org.endoqa.fastly.nbt.NBT
 import org.endoqa.fastly.util.protocol.readVarInt
 import org.endoqa.fastly.util.protocol.writeVarInt
 import java.nio.ByteBuffer
