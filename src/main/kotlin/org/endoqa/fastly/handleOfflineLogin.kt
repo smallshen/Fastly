@@ -8,6 +8,15 @@ import org.endoqa.fastly.protocol.packet.client.handshake.HandshakePacket
 import org.endoqa.fastly.protocol.packet.client.login.LoginStartPacket
 import java.util.*
 
+/**
+ * Handle offline login
+ *
+ * Disclaimer: support offline is because proxy-behind-proxy, not break EULA
+ *
+ * @param connection
+ * @param handshakePacket
+ * @return
+ */
 suspend fun FastlyServer.handleOfflineLogin(
     connection: Connection,
     handshakePacket: HandshakePacket
@@ -22,7 +31,6 @@ suspend fun FastlyServer.handleOfflineLogin(
     val profile = GameProfile(packet.name, uuid.toString().replace("-", ""), emptyList())
 
     val playerConnection = PlayerConnection(connection, profile, handshakePacket)
-
 
 
     playerConnection.connectToBackend(backendServers.first(), this)

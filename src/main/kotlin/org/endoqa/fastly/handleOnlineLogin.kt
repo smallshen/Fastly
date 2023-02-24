@@ -40,7 +40,7 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
     val nonce = ByteArray(4)
     ThreadLocalRandom.current().nextBytes(nonce)
     val encryptionRequestPacket = EncryptionRequestPacket("", this.keyPair.public.encoded, nonce)
-    connection.sendPacket(encryptionRequestPacket) // maybe we don't need to join. we'll se in the future
+    connection.sendPacket(encryptionRequestPacket)
 
     val ep = connection.nextPacket()
     require(ep.packetId == 0x01) { "Expected encryption response packet, got ${ep.packetId}" }

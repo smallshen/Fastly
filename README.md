@@ -4,7 +4,7 @@ A minecraft reverse proxy
 
 ## Roadmap
 
-- [x] offline
+- [x] offline(support offline is because proxy-behind-proxy, not break EULA)
 - [x] online verify user
 - [x] connect to backend server
 - [x] encryption
