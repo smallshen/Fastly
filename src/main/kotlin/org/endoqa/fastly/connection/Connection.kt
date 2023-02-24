@@ -6,9 +6,7 @@ import org.endoqa.fastly.encryption.EncryptedComplexAsyncSocket
 import org.endoqa.fastly.nio.AsyncSocket
 import org.endoqa.fastly.nio.ByteBuf
 import org.endoqa.fastly.nio.ComplexAsyncSocket
-import org.endoqa.fastly.protocol.MinecraftPacket
-import org.endoqa.fastly.protocol.PacketHandler
-import org.endoqa.fastly.protocol.RawPacket
+import org.endoqa.fastly.protocol.*
 import org.endoqa.fastly.protocol.packet.server.login.SetCompressionPacket
 import org.endoqa.fastly.util.calculateVarIntSize
 import java.nio.ByteBuffer
@@ -50,6 +48,16 @@ class Connection(
         compressionThreshold = threshold
     }
 
+    fun enableEncryption(secretKey: SecretKey) {
+        encryptCipher = Cipher.getInstance("AES/CFB8/NoPadding")
+        encryptCipher.init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(secretKey.encoded))
+
+        decryptCipher = Cipher.getInstance("AES/CFB8/NoPadding")
+        decryptCipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(secretKey.encoded))
+
+        encryption = true
+    }
+
 
     suspend fun readRawPacket(): RawPacket {
         return if (encryption) {
@@ -57,6 +65,20 @@ class Connection(
         } else {
             readNormal()
         }
+    }
+
+    suspend fun nextPacket(): NormalRawPacket {
+        return readRawPacket().ensureDecompressed()
+    }
+
+    private fun RawPacket.ensureCompressed(): CompressedRawPacket {
+        return if (this is CompressedRawPacket) this
+        else compress(Deflater())
+    }
+
+    private fun RawPacket.ensureDecompressed(): NormalRawPacket {
+        return if (this is NormalRawPacket) this
+        else decompress(Inflater())
     }
 
 
@@ -110,10 +132,13 @@ class Connection(
             readCompressedPacket(readVarInt, readFully)
         } else {
             val length = readVarInt()
-            val packetId = readVarInt()
-            val actualDataLength = length - calculateVarIntSize(packetId)
-            val pData = readFully(actualDataLength).position(0)
-            return RawPacket(length, packetId, pData)
+            val packetBuffer = readFully(length)
+            return NormalRawPacket(
+                length,
+                ByteBuf(packetBuffer).readVarInt(),
+                packetBuffer.slice().asReadOnlyBuffer(),
+                packetBuffer.position(0).asReadOnlyBuffer(),
+            )
         }
     }
 
@@ -122,26 +147,26 @@ class Connection(
         readVarInt: () -> Int,
         readFully: (Int) -> ByteBuffer
     ): RawPacket {
-        val compressedSize = readVarInt()
+        val length = readVarInt()
         val dataLength = readVarInt()
-        val rawBuffer = readFully(compressedSize - calculateVarIntSize(dataLength))
+        val rawBuffer = readFully(length - calculateVarIntSize(dataLength))
 
         if (dataLength == 0) {
             val packetId = ByteBuf(rawBuffer).readVarInt()
 
-            return RawPacket(rawBuffer.limit(), packetId, rawBuffer.slice())
+            return NormalRawPacket(
+                rawBuffer.limit(),
+                packetId,
+                rawBuffer.slice().asReadOnlyBuffer(),
+                rawBuffer.position(0).asReadOnlyBuffer()
+            )
         } else {
-            val decompressedBuffer = ByteBuffer.allocate(dataLength)
 
-            inflater.setInput(rawBuffer.position(0))
-            require(inflater.inflate(decompressedBuffer) == dataLength) { "Decompressed data length is not equal to the data length" }
-            inflater.reset()
-
-            decompressedBuffer.flip()
-
-            val packetId = ByteBuf(decompressedBuffer).readVarInt()
-
-            return RawPacket(dataLength, packetId, decompressedBuffer.slice())
+            return CompressedRawPacket(
+                length,
+                dataLength,
+                rawBuffer
+            )
         }
     }
 
@@ -151,13 +176,11 @@ class Connection(
         writeVarInt: (Int) -> Unit,
         writeFully: (ByteBuffer) -> Unit
     ) {
-        val (length, packetId, buffer) = packet
-
         if (compressionThreshold >= 0) {
             writeCompressedPacket(packet, writeVarInt, writeFully)
         } else {
+            val (length, _, _, buffer) = packet.ensureDecompressed()
             writeVarInt(length)
-            writeVarInt(packetId)
             writeFully(buffer.position(0))
         }
     }
@@ -167,53 +190,46 @@ class Connection(
         writeVarInt: (Int) -> Unit,
         writeFully: (ByteBuffer) -> Unit
     ) {
-        val (length, packetId, buffer) = packet
+        val rp = if (packet.needCompression(compressionThreshold)) packet.ensureCompressed() else packet
 
-        if (length >= compressionThreshold) {
-            val input = ByteBuffer.allocate(length)
+        when (rp) {
+            is CompressedRawPacket -> {
+                writeVarInt(rp.length)
 
-            ByteBuf(input).writeVarInt(packetId)
-            input.put(packet.buffer.position(0))
-            input.flip()
+                writeVarInt(rp.originalLength)
+                writeFully(rp.dataBuffer.position(0))
+            }
 
-            val output = ByteBuffer.allocate(input.limit() + 10) // ok gzip or minecraft, fuck u
+            is NormalRawPacket -> {
+                writeVarInt(rp.length + 1)
 
-            deflater.setInput(input)
-            deflater.finish()
-            deflater.deflate(output)
-            deflater.reset()
-
-            output.flip()
-
-            writeVarInt(output.limit() + calculateVarIntSize(length))
-            writeVarInt(length)
-            writeFully(output)
-
-        } else {
-            writeVarInt(length + 1)
-            writeVarInt(0)
-            writeVarInt(packetId)
-            writeFully(buffer.position(0))
+                writeVarInt(0) // uncompressed
+                writeFully(rp.dataBuffer.position(0))
+            }
         }
+
     }
 
 
     suspend fun sendPacket(p: MinecraftPacket) {
         val buf = PacketHandler.encodePacket(p)
 
-        val rp = RawPacket(buf.limit() + p.handler.packetIdSize, p.handler.packetId, buf)
+        val data = ByteBuffer.allocate(buf.limit() + p.handler.packetIdSize)
+
+        ByteBuf(data).writeVarInt(p.handler.packetId)
+        data.put(buf)
+        data.flip()
+
+        val rp = NormalRawPacket(
+            buf.limit() + p.handler.packetIdSize,
+            p.handler.packetId,
+            buf.position(0).asReadOnlyBuffer(),
+            data.position(0).asReadOnlyBuffer()
+        )
+
         writeRawPacket(rp)
     }
 
-    fun enableEncryption(secretKey: SecretKey) {
-        encryptCipher = Cipher.getInstance("AES/CFB8/NoPadding")
-        encryptCipher.init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(secretKey.encoded))
-
-        decryptCipher = Cipher.getInstance("AES/CFB8/NoPadding")
-        decryptCipher.init(Cipher.DECRYPT_MODE, secretKey, IvParameterSpec(secretKey.encoded))
-
-        encryption = true
-    }
 
     override fun close() {
         coroutineContext.complete()

@@ -35,7 +35,9 @@ class PlayerConnection(
             try {
                 connection.coroutineContext.join()
             } finally {
-                backendConnection.close()
+                if (this@PlayerConnection::backendConnection.isInitialized) {
+                    backendConnection.close()
+                }
                 Logger.info("${profile.name}(${profile.uuid}) logged out")
             }
         }
@@ -44,7 +46,7 @@ class PlayerConnection(
     suspend fun connectToBackend(target: BackendServer, server: FastlyServer) {
 
         val channel = withContext(Dispatchers.IO) {
-            AsynchronousSocketChannel.open() ?: error("Failed to open socket channel")
+            AsynchronousSocketChannel.open() ?: error("Failed to open socket channel, returned null")
         }
 
         val socket = AsyncSocket(channel)
@@ -72,15 +74,15 @@ class PlayerConnection(
             onlineModeHandshake(backend, server)
         }
 
-        val loginSuccessRp = backend.readRawPacket()
+        val loginSuccessRp = backend.nextPacket()
         require(loginSuccessRp.packetId == 0x02) { "Expected login success packet, got ${loginSuccessRp.packetId}" }
 
         if (spawned) {
-            val joinGame = backend.readRawPacket()
+            val joinGame = backend.nextPacket()
             require(joinGame.packetId == 0x24) { "Expected join game packet, got ${joinGame.packetId}" }
 
-            val joinGamePacket = JoinGamePacket.read(ByteBuf(joinGame.buffer.position(0)))
-            joinGame.buffer.position(0)
+            val joinGamePacket = JoinGamePacket.read(ByteBuf(joinGame.contentBuffer.position(0)))
+            joinGame.contentBuffer.position(0)
 
             connection.writeRawPacket(joinGame)
 
@@ -97,10 +99,10 @@ class PlayerConnection(
     private suspend fun onlineModeHandshake(backend: Connection, server: FastlyServer) {
 
 
-        val loginRequestRp = backend.readRawPacket()
+        val loginRequestRp = backend.nextPacket()
         require(loginRequestRp.packetId == LoginPluginRequestPacket.packetId) { "Expected login plugin response packet, got ${loginRequestRp.packetId}" }
 
-        val loginRequest = LoginPluginRequestPacket.read(ByteBuf(loginRequestRp.buffer.position(0)))
+        val loginRequest = LoginPluginRequestPacket.read(ByteBuf(loginRequestRp.contentBuffer.position(0)))
 
         val loginResponsePacket = LoginPluginResponsePacket(
             loginRequest.messageId,
@@ -122,11 +124,10 @@ class PlayerConnection(
                     val p = backendConnection.readRawPacket()
 
                     connection.writeRawPacket(p)
-                    yield()
+//                    yield()
                 }
-            } catch (e: CancellationException) {
-                // ignore
             } catch (e: Throwable) {
+                e.printStackTrace()
                 backendJob.cancel("Canceled due to error", e)
             }
         }
@@ -135,11 +136,10 @@ class PlayerConnection(
             try {
                 while (isActive) {
                     backendConnection.writeRawPacket(connection.readRawPacket())
-                    yield()
+//                    yield()
                 }
-            } catch (e: CancellationException) {
-                // ignore
             } catch (e: Throwable) {
+                e.printStackTrace()
                 backendJob.cancel("Canceled due to error", e)
             }
         }

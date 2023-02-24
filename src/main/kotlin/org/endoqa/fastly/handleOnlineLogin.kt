@@ -29,10 +29,10 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePacket: HandshakePacket): PlayerConnection {
-    val rp = connection.readRawPacket()
+    val rp = connection.nextPacket()
     require(rp.packetId == 0x00) { "Expected login packet, got ${rp.packetId}" }
 
-    val loginStartPacket = LoginStartPacket.read(ByteBuf(rp.buffer.position(0)))
+    val loginStartPacket = LoginStartPacket.read(ByteBuf(rp.contentBuffer.position(0)))
     if (!loginStartPacket.hasPlayerUUID || loginStartPacket.playerUUID == null) {
         error("Player UUID is null")
     }
@@ -42,10 +42,10 @@ suspend fun FastlyServer.handleOnlineLogin(connection: Connection, handshakePack
     val encryptionRequestPacket = EncryptionRequestPacket("", this.keyPair.public.encoded, nonce)
     connection.sendPacket(encryptionRequestPacket) // maybe we don't need to join. we'll se in the future
 
-    val ep = connection.readRawPacket()
+    val ep = connection.nextPacket()
     require(ep.packetId == 0x01) { "Expected encryption response packet, got ${ep.packetId}" }
 
-    val encryptionResponsePacket = EncryptionResponsePacket.read(ByteBuf(ep.buffer.position(0)))
+    val encryptionResponsePacket = EncryptionResponsePacket.read(ByteBuf(ep.contentBuffer.position(0)))
 
     val verifyCipher = Cipher.getInstance("RSA")
     verifyCipher.init(Cipher.DECRYPT_MODE, this.keyPair.private)

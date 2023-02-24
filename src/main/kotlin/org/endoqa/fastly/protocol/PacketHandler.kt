@@ -14,6 +14,7 @@ abstract class PacketHandler<out T : MinecraftPacket>(
 
 
     companion object {
+        //TODO: reuse buffers
         fun encodePacket(packet: MinecraftPacket): ByteBuffer {
 
             val byteBuffer: ByteBuffer = if (packet.handler.dynamicSize) {

@@ -11,14 +11,14 @@ import org.tinylog.kotlin.Logger
  */
 internal suspend fun FastlyServer.handleHandshake(connection: Connection): HandshakePacket? {
 
-    val p = connection.readRawPacket()
+    val p = connection.nextPacket()
 
     if (p.packetId != 0x00) {
         Logger.error("${connection.socket.channel.remoteAddress} sent invalid packet id during handshake")
         throw MalformedException("Invalid packet id: ${p.packetId} (expected 0x00)")
     }
 
-    val packet = HandshakePacket.read(ByteBuf(p.buffer.position(0)))
+    val packet = HandshakePacket.read(ByteBuf(p.contentBuffer.position(0)))
     val (_, _, _, nextState) = packet
 
     return when (nextState) {

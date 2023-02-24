@@ -11,7 +11,7 @@ import kotlin.time.Duration.Companion.seconds
 
 suspend fun handleStatus(connection: Connection) {
     val packet = withTimeout(30.seconds) {
-        connection.readRawPacket()
+        connection.nextPacket()
     }
     val (_, packetId, _) = packet
 
@@ -37,7 +37,7 @@ suspend fun handleStatus(connection: Connection) {
 
 suspend fun handlePing(connection: Connection) {
     val packet = withTimeout(30.seconds) {
-        connection.readRawPacket()
+        connection.nextPacket()
     }
 
     if (packet.packetId != 0x01) {

@@ -57,7 +57,7 @@ value class EncryptedComplexAsyncSocket(val connection: Connection) {
 
     suspend fun write(buf: ByteBuffer) {
         buf.position(0)
-        val encryptedBuf = buf.duplicate()
+        val encryptedBuf = ByteBuffer.allocate(buf.limit())
         encrypt.update(buf, encryptedBuf)
         socket.write(encryptedBuf.flip())
     }

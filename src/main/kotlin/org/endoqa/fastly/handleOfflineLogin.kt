@@ -13,10 +13,10 @@ suspend fun FastlyServer.handleOfflineLogin(
     handshakePacket: HandshakePacket
 ): PlayerConnection {
 
-    val rp = connection.readRawPacket()
+    val rp = connection.nextPacket()
     require(rp.packetId == 0x00) { "Expected login packet, got ${rp.packetId}" }
 
-    val packet = LoginStartPacket.read(ByteBuf(rp.buffer.position(0)))
+    val packet = LoginStartPacket.read(ByteBuf(rp.contentBuffer.position(0)))
 
     val uuid = UUID.nameUUIDFromBytes("OfflinePlayer:${packet.name}".toByteArray())
     val profile = GameProfile(packet.name, uuid.toString().replace("-", ""), emptyList())
