@@ -38,10 +38,6 @@ class Connection(
         private set
 
 
-    private val deflater by lazy { Deflater() }
-    private val inflater by lazy { Inflater() }
-
-
     suspend fun enableCompression(threshold: Int) {
         val p = SetCompressionPacket(threshold)
         sendPacket(p)
@@ -234,7 +230,5 @@ class Connection(
     override fun close() {
         coroutineContext.complete()
         socket.close()
-        deflater.end()
-        inflater.end()
     }
 }

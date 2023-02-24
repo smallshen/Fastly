@@ -44,16 +44,17 @@ class CompressedRawPacket(
 
         inflater.setInput(dataBuffer.position(0))
         val finalSize = inflater.inflate(decompressedBuffer)
-        require(finalSize == originalLength) { "Decompressed size is not equal to original size" }
+        decompressedBuffer.flip()
         inflater.reset()
         inflater.end()
-        decompressedBuffer.flip()
+
+        require(finalSize == originalLength) { "Decompressed size is not equal to original size" }
 
 
         return NormalRawPacket(
             originalLength,
             ByteBuf(decompressedBuffer).readVarInt(),
-            decompressedBuffer.flip().asReadOnlyBuffer(),
+            decompressedBuffer.slice().asReadOnlyBuffer(),
             decompressedBuffer.position(0).asReadOnlyBuffer()
         )
 
@@ -85,14 +86,14 @@ data class NormalRawPacket(
 
         deflater.setInput(dataBuffer.position(0))
         deflater.finish()
-        deflater.deflate(output)
+        val compressedSize = deflater.deflate(output)
         deflater.reset()
         deflater.end()
-
         output.flip()
 
+
         return CompressedRawPacket(
-            output.limit() + calculateVarIntSize(length),
+            compressedSize + calculateVarIntSize(length),
             length,
             output.position(0).asReadOnlyBuffer()
         )

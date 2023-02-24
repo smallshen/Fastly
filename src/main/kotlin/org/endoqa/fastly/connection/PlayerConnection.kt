@@ -122,12 +122,11 @@ class PlayerConnection(
             try {
                 while (isActive) {
                     val p = backendConnection.readRawPacket()
-
                     connection.writeRawPacket(p)
-//                    yield()
                 }
+            } catch (e: CancellationException) {
+                // ignore
             } catch (e: Throwable) {
-                e.printStackTrace()
                 backendJob.cancel("Canceled due to error", e)
             }
         }
@@ -136,10 +135,10 @@ class PlayerConnection(
             try {
                 while (isActive) {
                     backendConnection.writeRawPacket(connection.readRawPacket())
-//                    yield()
                 }
+            } catch (e: CancellationException) {
+                // ignore
             } catch (e: Throwable) {
-                e.printStackTrace()
                 backendJob.cancel("Canceled due to error", e)
             }
         }
