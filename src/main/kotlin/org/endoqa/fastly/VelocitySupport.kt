@@ -1,18 +1,17 @@
 package org.endoqa.fastly
 
 import org.endoqa.fastly.connection.Connection
-import org.endoqa.fastly.nio.ByteBuf
+import org.endoqa.fastly.nio.GrowingByteBuf
 import org.endoqa.fastly.player.GameProfile
 import java.net.InetSocketAddress
-import java.nio.ByteBuffer
 import javax.crypto.Mac
 
 fun FastlyServer.createForwardingData(
     actualAddress: String,
     gameProfile: GameProfile
 ): ByteArray {
-    val buffer = ByteBuffer.allocate(2048) //TODO: replace 2048 with estimatedSize
-    val buf = ByteBuf(buffer)
+
+    val buf = GrowingByteBuf(2048)
     buf.writeVarInt(1) // MODERN_FORWARDING_DEFAULT, no support for chat sign
     buf.writeString(actualAddress)
     buf.writeUUID(gameProfile.uuid)
@@ -25,6 +24,8 @@ fun FastlyServer.createForwardingData(
         buf.writeBoolean(property.signature != null)
         property.signature?.let { buf.writeString(it) }
     }
+
+    val buffer = buf.buf
 
     buffer.flip()
 

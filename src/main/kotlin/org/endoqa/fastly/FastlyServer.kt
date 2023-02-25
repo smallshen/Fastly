@@ -15,7 +15,7 @@ import javax.crypto.spec.SecretKeySpec
 
 class FastlyServer(
     private val port: Int,
-    val online: Boolean = false, //TODO: default to true in the future
+    val online: Boolean = true,
     val compressionThreshold: Int = 256,
     forwardSecret: String
 ) : CoroutineScope {

@@ -15,14 +15,14 @@ abstract class PacketHandler<out T : MinecraftPacket>(
 
     companion object {
         //TODO: reuse buffers
-        fun encodePacket(packet: MinecraftPacket): ByteBuffer {
+        fun encodePacket(packet: MinecraftPacket, buffer: ByteBuffer?): ByteBuffer {
 
             val byteBuffer: ByteBuffer = if (packet.handler.dynamicSize) {
-                val buf = GrowingByteBuf(packet.estimateSize())
+                val buf = GrowingByteBuf(buffer ?: ByteBuffer.allocate(packet.estimateSize()))
                 packet.handler.write(buf, packet)
                 buf.buf.flip()
             } else {
-                val buf = ByteBuffer.allocate(packet.estimateSize())
+                val buf = buffer ?: ByteBuffer.allocate(packet.estimateSize())
                 packet.handler.write(ByteBuf(buf), packet)
                 buf.flip()
             }

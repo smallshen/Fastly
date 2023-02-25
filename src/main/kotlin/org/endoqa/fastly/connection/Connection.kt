@@ -147,18 +147,15 @@ class Connection(
         val dataLength = readVarInt()
         val rawBuffer = readFully(length - calculateVarIntSize(dataLength))
 
-        if (dataLength == 0) {
-            val packetId = ByteBuf(rawBuffer).readVarInt()
-
-            return NormalRawPacket(
-                rawBuffer.limit(),
-                packetId,
-                rawBuffer.slice().asReadOnlyBuffer(),
-                rawBuffer.position(0).asReadOnlyBuffer()
+        return if (dataLength == 0) {
+            NormalRawPacket(
+                length = rawBuffer.limit(),
+                packetId = ByteBuf(rawBuffer).readVarInt(),
+                contentBuffer = rawBuffer.slice().asReadOnlyBuffer(),
+                dataBuffer = rawBuffer.position(0).asReadOnlyBuffer()
             )
         } else {
-
-            return CompressedRawPacket(
+            CompressedRawPacket(
                 length,
                 dataLength,
                 rawBuffer
@@ -208,19 +205,22 @@ class Connection(
 
 
     suspend fun sendPacket(p: MinecraftPacket) {
-        val buf = PacketHandler.encodePacket(p)
 
-        val data = ByteBuffer.allocate(buf.limit() + p.handler.packetIdSize)
+        val estimateSize = 5 + p.estimateSize()
 
-        ByteBuf(data).writeVarInt(p.handler.packetId)
-        data.put(buf)
-        data.flip()
+        val buf = ByteBuffer.allocate(estimateSize)
+
+        ByteBuf(buf).writeVarInt(p.handler.packetId)
+
+        val mark = buf.position()
+
+        val resultBuffer = PacketHandler.encodePacket(p, buf)
 
         val rp = NormalRawPacket(
-            buf.limit() + p.handler.packetIdSize,
-            p.handler.packetId,
-            buf.position(0).asReadOnlyBuffer(),
-            data.position(0).asReadOnlyBuffer()
+            length = resultBuffer.limit(),
+            packetId = p.handler.packetId,
+            contentBuffer = resultBuffer.position(mark).slice().asReadOnlyBuffer(),
+            dataBuffer = resultBuffer.position(0).asReadOnlyBuffer()
         )
 
         writeRawPacket(rp)
