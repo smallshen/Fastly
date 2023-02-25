@@ -33,7 +33,7 @@ suspend fun FastlyServer.handleOfflineLogin(
     val playerConnection = PlayerConnection(connection, profile, handshakePacket)
 
 
-    playerConnection.connectToBackend(backendServers.first(), this)
+    playerConnection.connectToBackend(backends.first(), this)
 
     return playerConnection
 }

@@ -1,7 +1,7 @@
 package org.endoqa.fastly.connection
 
 import kotlinx.coroutines.*
-import org.endoqa.fastly.BackendServer
+import org.endoqa.fastly.Backend
 import org.endoqa.fastly.FastlyServer
 import org.endoqa.fastly.createForwardingData
 import org.endoqa.fastly.nio.AsyncSocket
@@ -43,7 +43,7 @@ class PlayerConnection(
         }
     }
 
-    suspend fun connectToBackend(target: BackendServer, server: FastlyServer) {
+    suspend fun connectToBackend(target: Backend, server: FastlyServer) {
 
         val channel = withContext(Dispatchers.IO) {
             AsynchronousSocketChannel.open() ?: error("Failed to open socket channel, returned null")

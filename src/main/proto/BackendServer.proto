@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package org.endoqa.fastly.config;
+
+option go_package = "config/";
+
+message BackendServer {
+  string name = 1;
+  string address = 2;
+  uint32 port = 3;
+}

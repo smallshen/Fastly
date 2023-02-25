@@ -2,7 +2,7 @@ package org.endoqa.fastly.nio
 
 
 import org.endoqa.fastly.nbt.NBT
-import org.endoqa.fastly.util.estimateProtocolSizeInBytes
+import org.endoqa.fastly.util.protocol.writeVarInt
 import java.nio.ByteBuffer
 import java.util.*
 import kotlin.math.max
@@ -41,12 +41,13 @@ class GrowingByteBuf(
 
     override fun writeVarInt(int: Int) {
         ensureCapacity(5)
-        ByteBuf(buf).writeVarInt(int)
+        writeVarInt(int) { writeByte(it) }
     }
 
     override fun writeString(string: String) {
-        ensureCapacity(string.estimateProtocolSizeInBytes)
-        ByteBuf(buf).writeString(string)
+        val bytes = string.toByteArray()
+        writeVarInt(bytes.size)
+        writeByteArray(bytes)
     }
 
     override fun writeUnsignedShort(uShort: UShort) {
@@ -71,7 +72,7 @@ class GrowingByteBuf(
     }
 
     override fun writeByteArray(byteArray: ByteArray) {
-        ensureCapacity(byteArray.size + 5)
+        ensureCapacity(byteArray.size)
         ByteBuf(buf).writeByteArray(byteArray)
     }
 
